@@ -9,7 +9,7 @@ the GalSim software.
   - Tensorflow
   - Tensorflow Probability
   - Tensorflow Hub
-  
+
 ## Demos
 
-  - (TestVAE.ipynb)[notebooks/TestVAE.ipynb]: Simple example of how to use the provided code to make a tf.Dataset from a GalSim galaxy catalog, and use it to train a simple VAE
+  - [TestVAE.ipynb](notebooks/TestVAE.ipynb): Simple example of how to use the provided code to make a tf.Dataset from a GalSim galaxy catalog, and use it to train a simple VAE
