@@ -7,12 +7,12 @@ from .layers import wide_resnet
 
 @add_arg_scope
 def resnet_generator(code,
-                     final_depth=16,
-                     output_size=64,
+                     final_depth=32,
+                     output_size=32,
                      output_channels=1,
                      output_activation_fn=None,
                      block_type='wide',
-                     activation_fn=tf.nn.relu,
+                     activation_fn=tf.nn.leaky_relu,
                      is_training=True,
                      keep_prob=None,
                      reuse=None,
@@ -27,7 +27,7 @@ def resnet_generator(code,
     block_type:
         Type of resnet block to use (default: wide)
     """
-    if block_type  == 'wide':
+    if block_type == 'wide':
         resnet_block = wide_resnet
     else:
         raise NotImplementedError
@@ -40,26 +40,25 @@ def resnet_generator(code,
 
         # First upscaling and reshaping into an image
         current_depth = final_depth * 2 ** (num_stages-2)
-        net = tf.expand_dims(tf.expand_dims(net, 1),1)
-
+        net = tf.reshape(code, (-1, 1, 1, code.shape[-1]))
         net = slim.conv2d_transpose(net, current_depth, kernel_size=4, stride=1,
-                                     activation_fn=None, padding='VALID', scope='deconv1')
+                                    activation_fn=None, padding='VALID', scope='deconv1')
 
         #net = slim.dropout(net, keep_prob=0.9)
 
         # Now looping over stages
         for i in range(2, num_stages-1):
             current_depth = final_depth * 2 ** (num_stages - i - 1)
-            net = resnet_block(net, current_depth, resample='up',keep_prob=keep_prob,
+            net = resnet_block(net, current_depth, resample='up', keep_prob=keep_prob,
                                activation_fn=activation_fn, scope='resnet%d_a'%i)
-            net = resnet_block(net, current_depth, resample=None,keep_prob=keep_prob,
+            net = resnet_block(net, current_depth, resample=None, keep_prob=keep_prob,
                                activation_fn=activation_fn, scope='resnet%d_b'%i)
 
         # Upsampling last layer
-        net = tf.image.resize_bilinear(net, [output_size,output_size], name='resize')
+        net = tf.image.resize_bilinear(net, [output_size, output_size], name='resize')
         # Final convolution into full resolution image
-        output = slim.conv2d(net, output_channels,kernel_size=5, padding='SAME',
-                             activation_fn=output_activation_fn, scope='conv_out' )
+        output = slim.conv2d(net, output_channels, kernel_size=5, padding='SAME',
+                             activation_fn=output_activation_fn, scope='conv_out')
 
         return slim.utils.collect_named_outputs(outputs_collections,
                                                 sc.original_name_scope,
@@ -70,7 +69,7 @@ def resnet_encoder(inputs,
                    input_depth=16,
                    latent_size=64,
                    block_type='wide',
-                   activation_fn=tf.nn.relu,
+                   activation_fn=tf.nn.leaky_relu,
                    is_training=True,
                    reuse=None,
                    outputs_collections=None, scope=None):
