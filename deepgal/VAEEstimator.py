@@ -20,7 +20,7 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
     # Create a module for the encoding task
     def encoder_module_fn():
         input_layer = tf.placeholder(tf.float32, shape=[None, image_size, image_size, n_channels])
-        sample_shape = tf.placeholder(tf.int32)
+        sample_shape = tf.placeholder(tf.int32, shape=[])
 
         net = encoder_fn(input_layer, latent_size=latent_size, is_training=is_training, scope='encoder')
         loc, scale  = tf.split(net, [latent_size, latent_size], axis=-1)
@@ -103,7 +103,7 @@ def vae_model_fn(features, labels, mode, params, config):
                                      is_training)
     decoder = hub.Module(decoder_spec, name='decoder', trainable=True)
     prior = tfd.MultivariateNormalDiag(
-                loc=tf.zeros([latent_size]),
+                loc=tf.zeros([params['latent_size']]),
                 scale_identity_multiplier=1.0)
 
     # Sample from the infered posterior
