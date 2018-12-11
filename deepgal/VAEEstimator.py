@@ -115,10 +115,9 @@ def vae_model_fn(features, labels, mode, params, config):
                                    recon.shape[-3], recon.shape[-2],
                                    recon.shape[-1]])
 
-    image_tile_summary("image", tf.to_float(x[:16]), rows=1, cols=16)
-    image_tile_summary("recon", tf.to_float(recon[:3, :16]), rows=3, cols=16)
-    image_tile_summary("diff", tf.to_float(tf.expand_dims(x[:16], axis=0)
-                                           - recon[:3, :16]), rows=3, cols=16)
+    image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
+    image_tile_summary("recon", tf.to_float(recon[0, :16]), rows=4, cols=4)
+    image_tile_summary("diff", tf.to_float(x[:16] - recon[0, :16]), rows=4, cols=4)
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         # Register and export encoder and decoder modules
