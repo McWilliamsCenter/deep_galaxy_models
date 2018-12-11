@@ -41,8 +41,7 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
 
         iaf = tfd.TransformedDistribution(
                     distribution=encoding,
-                    bijector=tfb.Chain(chain),
-                    event_shape=[latent_size])
+                    bijector=tfb.Chain(chain))
 
         sample = iaf.sample(sample_shape)
         log_prob = iaf.log_prob(sample)
