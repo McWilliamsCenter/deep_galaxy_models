@@ -15,37 +15,7 @@ def _softplus_inverse(x):
     """Helper which computes the function inverse of `tf.nn.softplus`."""
     return tf.log(tf.math.expm1(x))
 
-
-def make_mixture_prior(latent_size, mixture_components):
-    """Creates the mixture of Gaussians prior distribution.
-    Args:
-    latent_size: The dimensionality of the latent representation.
-    mixture_components: Number of elements of the mixture.
-    Returns:
-    random_prior: A `tfd.Distribution` instance representing the distribution
-      over encodings in the absence of any evidence.
-    """
-    if mixture_components == 1:
-        # See the module docstring for why we don't learn the parameters here.
-        return tfd.MultivariateNormalDiag(
-            loc=tf.zeros([latent_size]),
-            scale_identity_multiplier=1.0)
-
-    loc = tf.get_variable(name="loc", shape=[mixture_components, latent_size])
-    raw_scale_diag = tf.get_variable(
-      name="raw_scale_diag", shape=[mixture_components, latent_size])
-    mixture_logits = tf.get_variable(
-      name="mixture_logits", shape=[mixture_components])
-
-    return tfd.MixtureSameFamily(
-      components_distribution=tfd.MultivariateNormalDiag(
-          loc=loc,
-          scale_diag=tf.nn.softplus(raw_scale_diag)),
-      mixture_distribution=tfd.Categorical(logits=mixture_logits),
-      name="prior")
-
-
-def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, is_training):
+def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size is_training):
     # Create a module for the encoding task
     def encoder_module_fn():
         input_layer = tf.placeholder(tf.float32, shape=[None, image_size, image_size, n_channels])
@@ -58,8 +28,23 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, is_traini
             scale_diag=tf.nn.softplus(net[..., latent_size:] + _softplus_inverse(1.0)),
             name="code")
 
-        sample = encoding.sample(sample_shape)
-        log_prob = encoding.log_prob(sample)
+        # Use IAF for modeling the approximate posterior
+        chain = []
+        def get_permutation(name):
+            return tf.get_variable(name, initializer=np.random.permutation(latent_size).astype("int32"), trainable=False)
+        for i,s in enumerate(iaf_size):
+            chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
+                        shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                            hidden_layers=s))))
+            chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
+
+        iaf = tfd.TransformedDistribution(
+                    distribution=encoding,
+                    bijector=tfb.Chain(chain),
+                    event_shape=[latent_size])
+
+        sample = iaf.sample(sample_shape)
+        log_prob = iaf.log_prob(sample)
         hub.add_signature(inputs={'image': input_layer, 'sample_shape': sample_shape},
                           outputs={'sample': sample, 'log_prob': log_prob})
 
@@ -109,18 +94,19 @@ def vae_model_fn(features, labels, mode, params, config):
     # Build components of the model
     encoder_spec = make_encoder_spec(params['encoder_fn'], x.shape[-1],
                                      x.shape[-2],
-                                     params['latent_size'], is_training)
+                                     params['latent_size'],
+                                     params['iaf_size'], is_training)
     encoder = hub.Module(encoder_spec, name='encoder', trainable=True)
     decoder_spec = make_decoder_spec(params['decoder_fn'],
                                      params['latent_size'],
                                      is_training)
     decoder = hub.Module(decoder_spec, name='decoder', trainable=True)
-    prior = make_mixture_prior(params['latent_size'],
-                               params['mixture_components'])
+    prior = tfd.MultivariateNormalDiag(
+                loc=tf.zeros([latent_size]),
+                scale_identity_multiplier=1.0)
 
     # Sample from the infered posterior
-    code = encoder({'image': x, 'sample_shape': params['sample_shape']},
-                   as_dict=True)
+    code = encoder({'image': x, 'sample_shape': params['sample_shape']}, as_dict=True)
     code_shape = tf.shape(code['sample'])
     recon = decoder(tf.reshape(code['sample'], (-1, params['latent_size'])))
     if params['sample_shape'] > 1:
@@ -200,7 +186,7 @@ class VAEEstimator(tf.estimator.Estimator):
                  loglikelihood_fn=None,
                  latent_size=16,
                  sample_shape=16,
-                 mixture_components=100,
+                 iaf_size=[[256,256],[256,256]],
                  learning_rate=0.001,
                  max_steps=5001,
                  model_dir=None, config=None):
@@ -214,7 +200,7 @@ class VAEEstimator(tf.estimator.Estimator):
         params['loglikelihood_fn'] = loglikelihood_fn
         params['latent_size'] = latent_size
         params['sample_shape'] = sample_shape
-        params['mixture_components'] = mixture_components
+        params['iaf_size'] = iaf_size
         params['learning_rate'] = learning_rate
         params['max_steps'] = max_steps
 
