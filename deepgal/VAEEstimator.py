@@ -23,10 +23,11 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
         sample_shape = tf.placeholder(tf.int32)
 
         net = encoder_fn(input_layer, latent_size=latent_size, is_training=is_training, scope='encoder')
+        loc, scale  = tf.split(net, [latent_size, latent_size], axis=-1)
 
         encoding = tfd.MultivariateNormalDiag(
-            loc=net[..., :latent_size],
-            scale_diag=tf.nn.softplus(net[..., latent_size:] + _softplus_inverse(1.0)),
+            loc=loc,
+            scale_diag=tf.nn.softplus(scale + _softplus_inverse(1.0)),
             name="code")
 
         # Use IAF for modeling the approximate posterior
