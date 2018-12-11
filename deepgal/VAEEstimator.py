@@ -15,7 +15,7 @@ def _softplus_inverse(x):
     """Helper which computes the function inverse of `tf.nn.softplus`."""
     return tf.log(tf.math.expm1(x))
 
-def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size is_training):
+def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size, is_training):
     # Create a module for the encoding task
     def encoder_module_fn():
         input_layer = tf.placeholder(tf.float32, shape=[None, image_size, image_size, n_channels])
