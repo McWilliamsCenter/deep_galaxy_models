@@ -7,6 +7,7 @@ import tensorflow.contrib.slim as slim
 import tensorflow_probability as tfp
 import tensorflow_hub as hub
 tfd = tfp.distributions
+tfb = tfp.bijectors
 
 __all__ = ['VAEEstimator', 'vae_model_fn']
 
