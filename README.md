@@ -13,3 +13,4 @@ the GalSim software.
 ## Demos
 
   - [TestVAE.ipynb](notebooks/TestVAE.ipynb): Simple example of how to use the provided code to make a tf.Dataset from a GalSim galaxy catalog, and use it to train a simple VAE
+  - [TestGAN.ipynb](notebooks/TestGAN.ipynb): Simple example of how to use tfgan to build a generative model.
