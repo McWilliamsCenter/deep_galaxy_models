@@ -36,8 +36,9 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
             return tf.get_variable(name, initializer=np.random.permutation(latent_size).astype("int32"), trainable=False)
         for i,s in enumerate(iaf_size):
             chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
-                        shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-                            hidden_layers=s))))
+                            shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                            hidden_layers=s,
+                            shift_only=True))))
             chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
 
         iaf = tfd.TransformedDistribution(
@@ -88,7 +89,7 @@ def vae_model_fn(features, labels, mode, params, config):
     Model function to create a VAE estimator
     """
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-
+    
     # Extract input images
     x = features['x']
 
@@ -96,11 +97,12 @@ def vae_model_fn(features, labels, mode, params, config):
     encoder_spec = make_encoder_spec(params['encoder_fn'], x.shape[-1],
                                      x.shape[-2],
                                      params['latent_size'],
-                                     params['iaf_size'], is_training)
+                                     params['iaf_size'], is_training=is_training)
     encoder = hub.Module(encoder_spec, name='encoder', trainable=True)
     decoder_spec = make_decoder_spec(params['decoder_fn'],
                                      params['latent_size'],
-                                     is_training)
+                                     is_training=is_training)
+
     decoder = hub.Module(decoder_spec, name='decoder', trainable=True)
     prior = tfd.MultivariateNormalDiag(
                 loc=tf.zeros([params['latent_size']]),
@@ -117,8 +119,12 @@ def vae_model_fn(features, labels, mode, params, config):
                                    recon.shape[-1]])
 
     image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
-    image_tile_summary("recon", tf.to_float(recon[0, :16]), rows=4, cols=4)
-    image_tile_summary("diff", tf.to_float(x[:16] - recon[0, :16]), rows=4, cols=4)
+    if params['sample_shape'] > 1:
+        r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[0,:,:,:,0])*features['psf']),axis=-1)
+    else:
+        r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
+    image_tile_summary("recon", tf.to_float(r[:16]), rows=4, cols=4)
+    image_tile_summary("diff", tf.to_float(x[:16] - r[:16]), rows=4, cols=4)
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         # Register and export encoder and decoder modules
@@ -127,8 +133,8 @@ def vae_model_fn(features, labels, mode, params, config):
 
         # In case of prediction, we only sample new images from the prior
         z = prior.sample(params['sample_shape'])
-        image = decoder(z)
-        predictions = {'code': z, 'image': image}
+        image = decoder(tf.reshape(code['sample'], (-1, params['latent_size'])))
+        predictions = {'code': z, 'image': r, 'truth':x}
         return tf.estimator.EstimatorSpec(mode=mode,
                                           predictions=predictions)
 
