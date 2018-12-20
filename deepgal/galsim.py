@@ -3,7 +3,7 @@ from multiprocessing import Pool
 import numpy as np
 import galsim
 
-def build_input_pipeline(dir, filename='real_galaxy_catalog_25.2.fits',
+def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
                          batch_size=128, stamp_size=64, pixel_size=0.03,
                          nproc=None, nrepeat=4, cache=None, **kwargs):
     """
@@ -15,7 +15,7 @@ def build_input_pipeline(dir, filename='real_galaxy_catalog_25.2.fits',
     filename: Name of the GalSim real catalog
     nrepeat: Number of times the dataset is randomly rotated
     """
-    cat = galsim.COSMOSCatalog(dir=dir, file_name=filename)
+    cat = galsim.COSMOSCatalog(dir=data_dir, file_name=filename)
 
     if nproc is not None:
         pool = Pool(nproc)
@@ -24,7 +24,7 @@ def build_input_pipeline(dir, filename='real_galaxy_catalog_25.2.fits',
 
     def training_fn():
         dset = tf.data.Dataset.from_tensor_slices(cat.orig_index)
-        dest = dset.batch(128).map(get_postage_stamp_map(cat.real_cat,
+        dset = dset.batch(128).map(get_postage_stamp_map(cat.real_cat,
                                                          stamp_size=stamp_size,
                                                          pixel_size=pixel_size,
                                                          pool=pool))

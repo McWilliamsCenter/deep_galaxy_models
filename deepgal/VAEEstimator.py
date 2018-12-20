@@ -20,9 +20,9 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
     # Create a module for the encoding task
     def encoder_module_fn():
         input_layer = tf.placeholder(tf.float32, shape=[None, image_size, image_size, n_channels])
-        sample_shape = tf.placeholder(tf.int32, shape=[])
+        n_samples = tf.placeholder(tf.int32, shape=[])
 
-        net = encoder_fn(input_layer, latent_size=latent_size, is_training=is_training, scope='encoder')
+        net = encoder_fn(input_layer, is_training=is_training)
         loc, scale  = tf.split(net, [latent_size, latent_size], axis=-1)
 
         encoding = tfd.MultivariateNormalDiag(
@@ -45,9 +45,9 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
                     distribution=encoding,
                     bijector=tfb.Chain(chain))
 
-        sample = iaf.sample(sample_shape)
+        sample = iaf.sample(n_samples)
         log_prob = iaf.log_prob(sample)
-        hub.add_signature(inputs={'image': input_layer, 'sample_shape': sample_shape},
+        hub.add_signature(inputs={'image': input_layer, 'n_samples': n_samples},
                           outputs={'sample': sample, 'log_prob': log_prob})
 
     return hub.create_module_spec(encoder_module_fn)
@@ -57,7 +57,7 @@ def make_decoder_spec(decoder_fn, latent_size, is_training):
     # Module for the decoding task, returns an unconvolved light profile
     def decoder_module_fn():
         code = tf.placeholder(tf.float32, shape=[None, latent_size])
-        net = decoder_fn(code, is_training=is_training, scope='generator')
+        net = decoder_fn(code, is_training=is_training)
         hub.add_signature(inputs=code, outputs=net)
 
     return hub.create_module_spec(decoder_module_fn)
@@ -89,7 +89,7 @@ def vae_model_fn(features, labels, mode, params, config):
     Model function to create a VAE estimator
     """
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-    
+
     # Extract input images
     x = features['x']
 
@@ -109,17 +109,17 @@ def vae_model_fn(features, labels, mode, params, config):
                 scale_identity_multiplier=1.0)
 
     # Sample from the infered posterior
-    code = encoder({'image': x, 'sample_shape': params['sample_shape']}, as_dict=True)
+    code = encoder({'image': x, 'n_samples': params['n_samples']}, as_dict=True)
     code_shape = tf.shape(code['sample'])
     recon = decoder(tf.reshape(code['sample'], (-1, params['latent_size'])))
-    if params['sample_shape'] > 1:
+    if params['n_samples'] > 1:
         code_shape = tf.shape(code['sample'])
         recon = tf.reshape(recon, [code_shape[0], code_shape[1],
                                    recon.shape[-3], recon.shape[-2],
                                    recon.shape[-1]])
 
     image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
-    if params['sample_shape'] > 1:
+    if params['n_samples'] > 1:
         r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[0,:,:,:,0])*features['psf']),axis=-1)
     else:
         r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
@@ -132,7 +132,7 @@ def vae_model_fn(features, labels, mode, params, config):
         hub.register_module_for_export(decoder, "decoder")
 
         # In case of prediction, we only sample new images from the prior
-        z = prior.sample(params['sample_shape'])
+        z = prior.sample(params['n_samples'])
         image = decoder(tf.reshape(code['sample'], (-1, params['latent_size'])))
         predictions = {'code': z, 'image': r, 'truth':x}
         return tf.estimator.EstimatorSpec(mode=mode,
@@ -151,7 +151,7 @@ def vae_model_fn(features, labels, mode, params, config):
     tf.summary.scalar("elbo", tf.reduce_mean(elbo))
 
     importance_weighted_elbo = tf.reduce_mean(
-      tf.reduce_logsumexp(elbo, axis=0) - tf.log(tf.to_float(params['sample_shape'])))
+      tf.reduce_logsumexp(elbo, axis=0) - tf.log(tf.to_float(params['n_samples'])))
     tf.summary.scalar("elbo/importance_weighted", importance_weighted_elbo)
 
     # Randomly samples a bunch of examples for visualisation
@@ -191,7 +191,7 @@ class VAEEstimator(tf.estimator.Estimator):
                  decoder_fn=None,
                  loglikelihood_fn=None,
                  latent_size=16,
-                 sample_shape=16,
+                 n_samples=16,
                  iaf_size=[[256,256],[256,256]],
                  learning_rate=0.001,
                  max_steps=5001,
@@ -205,7 +205,7 @@ class VAEEstimator(tf.estimator.Estimator):
         params['decoder_fn'] = decoder_fn
         params['loglikelihood_fn'] = loglikelihood_fn
         params['latent_size'] = latent_size
-        params['sample_shape'] = sample_shape
+        params['n_samples'] = n_samples
         params['iaf_size'] = iaf_size
         params['learning_rate'] = learning_rate
         params['max_steps'] = max_steps
