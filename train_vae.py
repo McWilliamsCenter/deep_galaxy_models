@@ -26,13 +26,13 @@ flags.DEFINE_string("loglikelihood", default="Fourier",
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.001,
+flags.DEFINE_float("learning_rate", default=0.0001,
                      help="Initial learning rate.")
 
-flags.DEFINE_integer("max_steps", default=10001,
+flags.DEFINE_integer("max_steps", default=250001,
                      help="Number of training steps to run.")
 
-flags.DEFINE_integer("n_samples", default=16,
+flags.DEFINE_integer("n_samples", default=1,
                      help="Number of samples to use in encoding.")
 
 flags.DEFINE_string("model_dir", default=os.path.join(os.getenv("TEST_TMPDIR", "/tmp"), "vae/"),

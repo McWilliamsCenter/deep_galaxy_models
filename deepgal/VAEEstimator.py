@@ -30,21 +30,21 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
             scale_diag=tf.nn.softplus(scale + _softplus_inverse(1.0)),
             name="code")
 
-        # Use IAF for modeling the approximate posterior
-        chain = []
-        def get_permutation(name):
-            return tf.get_variable(name, initializer=np.random.permutation(latent_size).astype("int32"), trainable=False)
-        for i,s in enumerate(iaf_size):
-            chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
-                            shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-                            hidden_layers=s,
-                            shift_only=True))))
-            chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
-
-        iaf = tfd.TransformedDistribution(
-                    distribution=encoding,
-                    bijector=tfb.Chain(chain))
-
+        # # Use IAF for modeling the approximate posterior
+        # chain = []
+        # def get_permutation(name):
+        #     return tf.get_variable(name, initializer=np.random.permutation(latent_size).astype("int32"), trainable=False)
+        # for i,s in enumerate(iaf_size):
+        #     chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
+        #                     shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+        #                     hidden_layers=s,
+        #                     shift_only=True))))
+        #     chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
+        #
+        # iaf = tfd.TransformedDistribution(
+        #             distribution=encoding,
+        #             bijector=tfb.Chain(chain))
+        iaf = encoding
         sample = iaf.sample(n_samples)
         log_prob = iaf.log_prob(sample)
         hub.add_signature(inputs={'image': input_layer, 'n_samples': n_samples},

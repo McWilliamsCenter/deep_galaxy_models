@@ -5,7 +5,7 @@ import galsim
 
 def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
                          batch_size=128, stamp_size=64, pixel_size=0.03,
-                         input_nprocs=None, nrepeat=4, cache=None, **kwargs):
+                         input_nprocs=None, nrepeat=4, cache_dir=None, **kwargs):
     """
     This function creates an input pipeline by drawing images from GalSim
 
@@ -30,8 +30,8 @@ def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
                                                          pool=pool))
         dset = dset.flat_map(lambda arg, *rest: tf.data.Dataset.from_tensor_slices((arg,) + rest))
         dset = dset.repeat(nrepeat)
-        if cache is not None:
-            dset.cache(cache)
+        if cache_dir is not None:
+            dset.cache(cache_dir)
         dset = dset.repeat().shuffle(buffer_size=20000).batch(128).prefetch(16)
         iterator = dset.make_one_shot_iterator()
         batch_im, batch_psf, batch_ps = iterator.get_next()
