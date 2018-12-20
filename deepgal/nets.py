@@ -33,7 +33,7 @@ def resnet_decoder(code,
 
         net = tf.layers.conv2d_transpose(net, base_depth, kernel_size=4, strides=2,
                                          activation=activation, padding='SAME', name='deconv2')
-        net = tf.layers.batch_normalization(net, training=is_training, name='bn1')
+        #net = tf.layers.batch_normalization(net, training=is_training, name='bn1')
         net = tf.layers.conv2d_transpose(net, base_depth, kernel_size=4, strides=2,
                                          activation=activation, padding='SAME', name='deconv3')
 
@@ -54,7 +54,7 @@ def resnet_encoder(inputs,
     with tf.variable_scope(scope, [inputs], reuse=reuse) as sc:
 
         net = tf.layers.conv2d(inputs, base_depth, kernel_size=4, activation=activation, strides=2, name='conv1')
-        net = tf.layers.batch_normalization(net, training=is_training, name='bn1')
+        #net = tf.layers.batch_normalization(net, training=is_training, name='bn1')
         net = tf.layers.conv2d(net, base_depth, kernel_size=4, activation=activation, strides=2, name='conv2')
 
         for i in range(1, num_stages+1):
