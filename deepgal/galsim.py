@@ -1,6 +1,45 @@
 import tensorflow as tf
+from multiprocessing import Pool
 import numpy as np
 import galsim
+
+def build_input_pipeline(dir, filename='real_galaxy_catalog_25.2.fits',
+                         batch_size=128, stamp_size=64, pixel_size=0.03,
+                         nproc=None, nrepeat=4, cache=None, **kwargs):
+    """
+    This function creates an input pipeline by drawing images from GalSim
+
+    Parameters
+    ----------
+    dir: Directory for the GalSim data
+    filename: Name of the GalSim real catalog
+    nrepeat: Number of times the dataset is randomly rotated
+    """
+    cat = galsim.COSMOSCatalog(dir=dir, file_name=filename)
+
+    if nproc is not None:
+        pool = Pool(nproc)
+    else:
+        pool = None
+
+    def training_fn():
+        dset = tf.data.Dataset.from_tensor_slices(cat.orig_index)
+        dest = dset.batch(128).map(get_postage_stamp_map(cat.real_cat,
+                                                         stamp_size=stamp_size,
+                                                         pixel_size=pixel_size,
+                                                         pool=pool))
+        dset = dset.flat_map(lambda arg, *rest: tf.data.Dataset.from_tensor_slices((arg,) + rest))
+        dset = dset.repeat(nrepeat)
+        if cache is not None:
+            dset.cache(cache)
+        dset = dset.repeat().shuffle(buffer_size=20000).batch(128).prefetch(16)
+        iterator = dset.make_one_shot_iterator()
+        batch_im, batch_psf, batch_ps = iterator.get_next()
+        return {'x': tf.clip_by_value(batch_im,-1,1.),
+                'psf':batch_psf,
+                'ps':batch_ps}, tf.clip_by_value(batch_im,-1,1.)
+    return training_fn
+
 
 def get_postage_stamp_map(real_galaxy_catalog, stamp_size=64, pixel_size=0.03, pool=None):
     """
