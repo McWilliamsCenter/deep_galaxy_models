@@ -145,7 +145,7 @@ def vae_model_fn(features, labels, mode, params, config):
     kl = code['log_prob'] - prior.log_prob(code['sample'])
     tf.summary.scalar('kl', tf.reduce_mean(kl))
 
-    elbo = loglikelihood - kl
+    elbo = loglikelihood - 0.001*kl
 
     loss = - tf.reduce_mean(elbo)
     tf.summary.scalar("elbo", tf.reduce_mean(elbo))

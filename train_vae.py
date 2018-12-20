@@ -92,6 +92,7 @@ def make_loglikelihood_fn(type):
             y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'] / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
 
             pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
+            pz /= size**2
             return -pz
     else:
         def loglikelihood_fn(xin, yin, features):
