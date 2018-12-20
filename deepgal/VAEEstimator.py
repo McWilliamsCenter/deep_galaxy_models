@@ -110,7 +110,7 @@ def vae_model_fn(features, labels, mode, params, config):
             chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
                             shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
                             hidden_layers=s,
-                            shift_only=True))))
+                            shift_only=True, name='maf%d'%i), is_constant_jacobian=True)))
             chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
 
         iaf = tfd.TransformedDistribution(

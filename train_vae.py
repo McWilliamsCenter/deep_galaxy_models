@@ -26,7 +26,7 @@ flags.DEFINE_string("loglikelihood", default="Fourier",
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.0001,
+flags.DEFINE_float("learning_rate", default=0.00005,
                      help="Initial learning rate.")
 
 flags.DEFINE_integer("max_steps", default=250001,
