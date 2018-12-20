@@ -93,37 +93,39 @@ def vae_model_fn(features, labels, mode, params, config):
     # Extract input images
     x = features['x']
 
-    net = params['encoder_fn'](x, is_training=is_training)
-    loc, scale  = tf.split(net, [params['latent_size'], params['latent_size']], axis=-1)
+    with tf.variable_scope("encoder_module") as sc:
+        net = params['encoder_fn'](x, is_training=is_training)
+        loc, scale  = tf.split(net, [params['latent_size'], params['latent_size']], axis=-1)
 
-    encoding = tfd.MultivariateNormalDiag(
-        loc=loc,
-        scale_diag=tf.nn.softplus(scale + _softplus_inverse(1.0)),
-        name="code")
+        encoding = tfd.MultivariateNormalDiag(
+            loc=loc,
+            scale_diag=tf.nn.softplus(scale + _softplus_inverse(1.0)),
+            name="code")
 
-    # Use IAF for modeling the approximate posterior
-    chain = []
-    def get_permutation(name):
-        return tf.get_variable(name, initializer=np.random.permutation(params['latent_size']).astype("int32"), trainable=False)
-    for i,s in enumerate(params['iaf_size']):
-        chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
-                        shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-                        hidden_layers=s,
-                        shift_only=True))))
-        chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
+        # Use IAF for modeling the approximate posterior
+        chain = []
+        def get_permutation(name):
+            return tf.get_variable(name, initializer=np.random.permutation(params['latent_size']).astype("int32"), trainable=False)
+        for i,s in enumerate(params['iaf_size']):
+            chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
+                            shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                            hidden_layers=s,
+                            shift_only=True))))
+            chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
 
-    iaf = tfd.TransformedDistribution(
-                distribution=encoding,
-                bijector=tfb.Chain(chain))
+        iaf = tfd.TransformedDistribution(
+                    distribution=encoding,
+                    bijector=tfb.Chain(chain))
 
-    code = iaf.sample()
-    log_prob = iaf.log_prob(code)
+        code = iaf.sample()
+        log_prob = iaf.log_prob(code)
 
     prior = tfd.MultivariateNormalDiag(
                 loc=tf.zeros([params['latent_size']]),
                 scale_identity_multiplier=1.0)
 
-    recon = params['decoder_fn'](code, is_training=is_training)
+    with tf.variable_scope("decoder_module") as sc:
+        recon = params['decoder_fn'](code, is_training=is_training)
 
     image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
     if params['n_samples'] > 1:
