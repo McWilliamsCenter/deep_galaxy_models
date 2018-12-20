@@ -112,6 +112,9 @@ def main(argv):
                                         params['activation'], FLAGS.latent_size)
     params['iaf_size'] = [[256,256],[256,256]]
 
+    tf.gfile.MakeDirs(FLAGS.model_dir)
+    tf.gfile.MakeDirs(FLAGS.cache_dir)
+
     input_fn = build_input_pipeline(**params)
 
     estimator = tf.estimator.Estimator(
