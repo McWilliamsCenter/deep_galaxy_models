@@ -1,6 +1,6 @@
 # Deep Galaxy Models for GalSim
 
-This repository hosts some code used to train deep generative models for use with 
+This repository hosts some code used to train deep generative models for use with
 the GalSim software.
 
 ## Prerequisite
@@ -9,6 +9,15 @@ the GalSim software.
   - Tensorflow
   - Tensorflow Probability
   - Tensorflow Hub
+
+## To train a model
+
+Simply use the provided training function:
+
+```
+$ python train_vae.py --model_dir=models/vae
+```
+use the `--help` option to see different training options
 
 ## Demos
 
