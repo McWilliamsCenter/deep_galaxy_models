@@ -5,7 +5,7 @@ import galsim
 
 def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
                          batch_size=128, stamp_size=64, pixel_size=0.03,
-                         nproc=None, nrepeat=4, cache=None, **kwargs):
+                         input_nprocs=None, nrepeat=4, cache=None, **kwargs):
     """
     This function creates an input pipeline by drawing images from GalSim
 
@@ -17,8 +17,8 @@ def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
     """
     cat = galsim.COSMOSCatalog(dir=data_dir, file_name=filename)
 
-    if nproc is not None:
-        pool = Pool(nproc)
+    if input_nprocs is not None:
+        pool = Pool(input_nprocs)
     else:
         pool = None
 

@@ -63,24 +63,24 @@ flags.DEFINE_integer("input_nprocs", default=12,
 flags.DEFINE_integer("nrepeat", default=4,
                     help="Number of times the dataset is augmented by rotations")
 
-flags.DEFINE_string("cache_dir", default='/data2/COSMOS/cache',
+flags.DEFINE_string("cache_dir", default='/data2/COSMOS/cache64',
                     help="Path to directory storing a cache of the training set")
 
 FLAGS = flags.FLAGS
 
-def make_decoder(base_depth, num_stages, activation, latent_size
-    def decoder_fn(code):
-        images = resnet_decoder(code, base_depth=base_depth, num_stages=num_stages,
-                                activation=activation, latent_size=latent_size)
+def make_decoder(base_depth, num_stages, activation, latent_size):
+    def decoder_fn(code, is_training):
+        images = resnet_decoder(code, is_training=is_training, base_depth=base_depth, num_stages=num_stages,
+                                activation=activation, scope='decoder')
         return images
     return decoder_fn
 
 def make_encoder(base_depth, num_stages, activation, latent_size):
-    def encoder_fn(images):
-        code = resnet_encoder(images, base_depth=base_depth, num_stages=num_stages,
-                            activation=activation, latent_size=latent_size)
+    def encoder_fn(images, is_training):
+        code = resnet_encoder(images, is_training=is_training, base_depth=base_depth, num_stages=num_stages,
+                            activation=activation, latent_size=latent_size, scope='encoder')
         return code
-    return decoder_fn
+    return encoder_fn
 
 def make_loglikelihood_fn(type):
     if type == 'Fourier':
@@ -106,9 +106,9 @@ def main(argv):
     params["activation"] = getattr(tf.nn, params["activation"])
     params["loglikelihood_fn"] = make_loglikelihood_fn(FLAGS.loglikelihood)
     params["encoder_fn"] = make_encoder(FLAGS.base_depth, FLAGS.num_stages,
-                                        FLAGS.activation, FLAGS.latent_size)
+                                        params['activation'], FLAGS.latent_size)
     params["decoder_fn"] = make_decoder(FLAGS.base_depth, FLAGS.num_stages,
-                                        FLAGS.activation, FLAGS.latent_size)
+                                        params['activation'], FLAGS.latent_size)
     params['iaf_size'] = [[256,256],[256,256]]
 
     input_fn = build_input_pipeline(**params)
@@ -118,13 +118,13 @@ def main(argv):
       params=params,
       config=tf.estimator.RunConfig(
           model_dir=FLAGS.model_dir,
-          save_checkpoints_steps=FLAGS.viz_steps,
+          save_checkpoints_steps=FLAGS.save_checkpoints_steps,
       ))
 
     estimator.train(input_fn=input_fn, max_steps=FLAGS.max_steps)
 
     exporter = hub.LatestModuleExporter("tf_hub",
-        tf.estimator.export.build_raw_serving_input_receiver_fn(input_fn()[0])
+        tf.estimator.export.build_raw_serving_input_receiver_fn(input_fn()[0]))
     exporter.export(estimator, FLAGS.export_dir, estimator.latest_checkpoint())
 
 if __name__ == "__main__":
