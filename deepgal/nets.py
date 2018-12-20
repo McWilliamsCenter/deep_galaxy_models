@@ -66,10 +66,10 @@ def resnet_generator(code,
 
 @add_arg_scope
 def resnet_encoder(inputs,
-                   input_depth=16,
+                   base_depth=16,
                    latent_size=64,
                    block_type='wide',
-                   activation_fn=tf.nn.leaky_relu,
+                   activation=tf.nn.leaky_relu,
                    is_training=True,
                    reuse=None,
                    outputs_collections=None, scope=None):
@@ -89,21 +89,20 @@ def resnet_encoder(inputs,
         num_stages = int(log2(size_in))
 
         # Initial convolution
-        net = slim.conv2d(inputs, input_depth, kernel_size=5, activation_fn=activation_fn, padding='SAME',
-                          weights_initializer=slim.initializers.variance_scaling_initializer(),
-                          normalizer_fn=None, stride=2, scope='conv_in')
+        net = tf.layers.conv2d(inputs, base_depth, kernel_size=4, activation=activation,
+                                stride=2, scope='conv1')
+        net = tf.layers.conv2d(inputs, based_depth, kernel_size=4, activation=activation,
+                                stride=2, scope='conv2')
 
         for  i in range(1, num_stages-2):
-            current_depth = input_depth * 2**i
-            net = resnet_block(net, current_depth, resample='down',
-                              activation_fn=activation_fn, scope='resnet%d_a'%i)
-            net = resnet_block(net, current_depth, resample=None,
-                              activation_fn=activation_fn, scope='resnet%d_b'%i)
+            current_depth = based_depth * 2**i
+            net = resnet_block(net, current_depth, resample=None, scope='resnet%d_a'%i)
+            net = resnet_block(net, current_depth, resample=None, scope='resnet%d_b'%i)
 
         # Reshaping into a 1D code
-        net = slim.flatten(net, scope='flat')
+        net = tf.layers.flatten(net, scope='flat')
 
-        output = slim.fully_connected(net, 2*latent_size, activation_fn=None,
+        output = tf.layes.dense(net, 2*latent_size, activation=None,
                                       normalizer_fn=None, scope='fc_enc1')
 
         return slim.utils.collect_named_outputs(outputs_collections,
