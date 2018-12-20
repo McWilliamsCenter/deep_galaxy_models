@@ -93,30 +93,37 @@ def vae_model_fn(features, labels, mode, params, config):
     # Extract input images
     x = features['x']
 
-    # Build components of the model
-    encoder_spec = make_encoder_spec(params['encoder_fn'], x.shape[-1],
-                                     x.shape[-2],
-                                     params['latent_size'],
-                                     params['iaf_size'], is_training=is_training)
-    encoder = hub.Module(encoder_spec, name='encoder', trainable=True)
-    decoder_spec = make_decoder_spec(params['decoder_fn'],
-                                     params['latent_size'],
-                                     is_training=is_training)
+    net = params['encoder_fn'](x, is_training=is_training)
+    loc, scale  = tf.split(net, [params['latent_size'], params['latent_size']], axis=-1)
 
-    decoder = hub.Module(decoder_spec, name='decoder', trainable=True)
+    encoding = tfd.MultivariateNormalDiag(
+        loc=loc,
+        scale_diag=tf.nn.softplus(scale + _softplus_inverse(1.0)),
+        name="code")
+
+    # Use IAF for modeling the approximate posterior
+    chain = []
+    def get_permutation(name):
+        return tf.get_variable(name, initializer=np.random.permutation(params['latent_size']).astype("int32"), trainable=False)
+    for i,s in enumerate(params['iaf_size']):
+        chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
+                        shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                        hidden_layers=s,
+                        shift_only=True))))
+        chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
+
+    iaf = tfd.TransformedDistribution(
+                distribution=encoding,
+                bijector=tfb.Chain(chain))
+
+    code = iaf.sample()
+    log_prob = iaf.log_prob(code)
+
     prior = tfd.MultivariateNormalDiag(
                 loc=tf.zeros([params['latent_size']]),
                 scale_identity_multiplier=1.0)
 
-    # Sample from the infered posterior
-    code = encoder({'image': x, 'n_samples': params['n_samples']}, as_dict=True)
-    code_shape = tf.shape(code['sample'])
-    recon = decoder(tf.reshape(code['sample'], (-1, params['latent_size'])))
-    if params['n_samples'] > 1:
-        code_shape = tf.shape(code['sample'])
-        recon = tf.reshape(recon, [code_shape[0], code_shape[1],
-                                   recon.shape[-3], recon.shape[-2],
-                                   recon.shape[-1]])
+    recon = params['decoder_fn'](code, is_training=is_training)
 
     image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
     if params['n_samples'] > 1:
@@ -127,22 +134,16 @@ def vae_model_fn(features, labels, mode, params, config):
     image_tile_summary("diff", tf.to_float(x[:16] - r[:16]), rows=4, cols=4)
 
     if mode == tf.estimator.ModeKeys.PREDICT:
-        # Register and export encoder and decoder modules
-        hub.register_module_for_export(encoder, "encoder")
-        hub.register_module_for_export(decoder, "decoder")
-
-        # In case of prediction, we only sample new images from the prior
         z = prior.sample(params['n_samples'])
-        image = decoder(tf.reshape(code['sample'], (-1, params['latent_size'])))
+        image =  params['decoder_fn'](tf.reshape(z, (-1, params['latent_size'])), is_training=False)
         predictions = {'code': z, 'image': r, 'truth':x}
-        return tf.estimator.EstimatorSpec(mode=mode,
-                                          predictions=predictions)
+        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
     # This is the loglikelihood of a batch of images
     loglikelihood = params['loglikelihood_fn'](x, recon, features)
     tf.summary.scalar('loglikelihood', tf.reduce_mean(loglikelihood))
 
-    kl = code['log_prob'] - prior.log_prob(code['sample'])
+    kl = log_prob - prior.log_prob(code)
     tf.summary.scalar('kl', tf.reduce_mean(kl))
 
     elbo = loglikelihood - 0.001*kl
@@ -153,11 +154,6 @@ def vae_model_fn(features, labels, mode, params, config):
     importance_weighted_elbo = tf.reduce_mean(
       tf.reduce_logsumexp(elbo, axis=0) - tf.log(tf.to_float(params['n_samples'])))
     tf.summary.scalar("elbo/importance_weighted", importance_weighted_elbo)
-
-    # Randomly samples a bunch of examples for visualisation
-    random_code = prior.sample(16)
-    random_image = decoder(random_code)
-    image_tile_summary("random", tf.to_float(random_image), rows=4, cols=4)
 
     # Training of the model
     global_step = tf.train.get_or_create_global_step()
