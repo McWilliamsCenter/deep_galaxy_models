@@ -149,7 +149,7 @@ def vae_model_fn(features, labels, mode, params, config):
     kl = log_prob - prior.log_prob(code)
     tf.summary.scalar('kl', tf.reduce_mean(kl))
 
-    elbo = loglikelihood - kl
+    elbo = loglikelihood - kl*params['kl_weight']
 
     loss = - tf.reduce_mean(elbo)
     tf.summary.scalar("elbo", tf.reduce_mean(elbo))
@@ -192,6 +192,7 @@ class VAEEstimator(tf.estimator.Estimator):
                  decoder_fn=None,
                  loglikelihood_fn=None,
                  latent_size=16,
+                 kl_weight=0.001,
                  n_samples=16,
                  gradient_clipping=100,
                  iaf_size=[[256,256],[256,256]],
@@ -209,6 +210,7 @@ class VAEEstimator(tf.estimator.Estimator):
         params['latent_size'] = latent_size
         params['n_samples'] = n_samples
         params['iaf_size'] = iaf_size
+        params['kl_weight'] = kl_weight
         params['learning_rate'] = learning_rate
         params['max_steps'] = max_steps
         params['gradient_clipping'] = gradient_clipping

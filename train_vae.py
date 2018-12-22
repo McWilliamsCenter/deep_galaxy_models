@@ -32,6 +32,9 @@ flags.DEFINE_float("learning_rate", default=0.0001,
 flags.DEFINE_float("gradient_clipping", default=1.,
                      help="Gradient norm clipping")
 
+flags.DEFINE_float("kl_weight", default=0.001.,
+                     help="Weighting for the KL divergence constraint")
+
 flags.DEFINE_integer("max_steps", default=250001,
                      help="Number of training steps to run.")
 
