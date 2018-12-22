@@ -95,11 +95,14 @@ def make_loglikelihood_fn(type):
 
             pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
             return -pz
-    else type == 'Pixel':
+    elif type == 'Pixel':
         def loglikelihood_fn(xin, yin, features):
             y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'])
             pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - y)**2, axis=[-1, -2])
             return -pz
+    else:
+        raise NotImplemented()
+        
     return loglikelihood_fn
 
 def main(argv):
