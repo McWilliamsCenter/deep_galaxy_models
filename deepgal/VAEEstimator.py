@@ -8,6 +8,7 @@ import tensorflow_probability as tfp
 import tensorflow_hub as hub
 tfd = tfp.distributions
 tfb = tfp.bijectors
+from .flow import _clip_by_value_preserve_grad
 
 __all__ = ['VAEEstimator', 'vae_model_fn']
 
@@ -148,7 +149,7 @@ def vae_model_fn(features, labels, mode, params, config):
     kl = log_prob - prior.log_prob(code)
     tf.summary.scalar('kl', tf.reduce_mean(kl))
 
-    elbo = loglikelihood - 0.01*kl
+    elbo = loglikelihood - kl
 
     loss = - tf.reduce_mean(elbo)
     tf.summary.scalar("elbo", tf.reduce_mean(elbo))
@@ -163,10 +164,12 @@ def vae_model_fn(features, labels, mode, params, config):
                                           params["max_steps"])
     tf.summary.scalar("learning_rate", learning_rate)
     optimizer = tf.train.AdamOptimizer(learning_rate)
+    grads_and_vars = optimizer.compute_gradients(loss)
+    clipped_grads_and_vars = [(tf.clip_by_norm(grad, params["gradient_clipping"]), var) for grad, var in grads_and_vars]
 
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        train_op = optimizer.minimize(loss, global_step=global_step)
+        train_op = optimizer.apply_gradients(clipped_grads_and_vars, global_step=global_step)
 
     eval_metric_ops = {
         "elbo/importance_weighted": tf.metrics.mean(importance_weighted_elbo),
@@ -190,6 +193,7 @@ class VAEEstimator(tf.estimator.Estimator):
                  loglikelihood_fn=None,
                  latent_size=16,
                  n_samples=16,
+                 gradient_clipping=100,
                  iaf_size=[[256,256],[256,256]],
                  learning_rate=0.001,
                  max_steps=5001,
@@ -207,6 +211,7 @@ class VAEEstimator(tf.estimator.Estimator):
         params['iaf_size'] = iaf_size
         params['learning_rate'] = learning_rate
         params['max_steps'] = max_steps
+        params['gradient_clipping'] = gradient_clipping
 
         super(self.__class__, self).__init__(model_fn=vae_model_fn,
                                              model_dir=model_dir,
