@@ -29,7 +29,7 @@ flags.DEFINE_integer("batch_size", default=128,
 flags.DEFINE_float("learning_rate", default=0.001,
                      help="Initial learning rate.")
 
-flags.DEFINE_float("gradient_clipping", default=10.,
+flags.DEFINE_float("gradient_clipping", default=1.,
                      help="Gradient norm clipping")
 
 flags.DEFINE_integer("max_steps", default=250001,
@@ -102,7 +102,7 @@ def make_loglikelihood_fn(type):
             return -pz
     else:
         raise NotImplemented()
-        
+
     return loglikelihood_fn
 
 def main(argv):
