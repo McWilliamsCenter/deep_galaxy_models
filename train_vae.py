@@ -19,17 +19,17 @@ flags.DEFINE_integer("latent_size", default=128,
 flags.DEFINE_string("activation", default="leaky_relu",
                      help="Activation function for all hidden layers.")
 
-flags.DEFINE_string("loglikelihood", default="Fourier",
+flags.DEFINE_string("loglikelihood", default="Pixel",
                      help="Define in which space to compute the likelihood of the data, 'Fourier' or 'Pixel'")
 
 # Training parameters
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.00005,
+flags.DEFINE_float("learning_rate", default=0.001,
                      help="Initial learning rate.")
 
-flags.DEFINE_float("gradient_clipping", default=1.,
+flags.DEFINE_float("gradient_clipping", default=10.,
                      help="Gradient norm clipping")
 
 flags.DEFINE_integer("max_steps", default=250001,
@@ -89,17 +89,16 @@ def make_loglikelihood_fn(type):
     if type == 'Fourier':
         def loglikelihood_fn(xin, yin, features):
             size = xin.get_shape().as_list()[1]
-
             # Apply PSF to output of network
             x = tf.spectral.irfft2d(tf.spectral.rfft2d(xin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
             y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'] / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
 
             pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
-            pz /= size
             return -pz
-    else:
+    else type == 'Pixel':
         def loglikelihood_fn(xin, yin, features):
-            pz = tf.reduce_sum(tf.abs(xin - yin)**2, axis=[-1, -2, -3])
+            y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'])
+            pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - y)**2, axis=[-1, -2])
             return -pz
     return loglikelihood_fn
 
