@@ -19,7 +19,7 @@ flags.DEFINE_integer("latent_size", default=128,
 flags.DEFINE_string("activation", default="leaky_relu",
                      help="Activation function for all hidden layers.")
 
-flags.DEFINE_string("loglikelihood", default="Fourier",
+flags.DEFINE_string("loglikelihood", default="Pixel",
                      help="Define in which space to compute the likelihood of the data, 'Fourier' or 'Pixel'")
 
 # Training parameters
@@ -28,6 +28,12 @@ flags.DEFINE_integer("batch_size", default=128,
 
 flags.DEFINE_float("learning_rate", default=0.0001,
                      help="Initial learning rate.")
+
+flags.DEFINE_float("gradient_clipping", default=1.,
+                     help="Gradient norm clipping")
+
+flags.DEFINE_float("kl_weight", default=0.001,
+                     help="Weighting for the KL divergence constraint")
 
 flags.DEFINE_integer("max_steps", default=250001,
                      help="Number of training steps to run.")
@@ -43,28 +49,6 @@ flags.DEFINE_string("export_dir", default="modules/vae",
 
 flags.DEFINE_integer("save_checkpoints_steps", default=1000,
                      help="Frequency at which to save checkpoints.")
-
-# Input pipeline parameters
-flags.DEFINE_string("data_dir", default='/usr/local/share/galsim/COSMOS_25.2_training_sample',
-                    help="Directory to the GalSim COSMOS data")
-
-flags.DEFINE_string("filename", default='real_galaxy_catalog_25.2.fits',
-                    help="Name of the COSMOS dataset")
-
-flags.DEFINE_integer("stamp_size", default=64,
-                    help="Size of the postage stamps")
-
-flags.DEFINE_float("pixel_size", default=0.03,
-                    help="Pixel size in arcsec")
-
-flags.DEFINE_integer("input_nprocs", default=12,
-                    help="Number of parallel threads for the input pipeline")
-
-flags.DEFINE_integer("nrepeat", default=4,
-                    help="Number of times the dataset is augmented by rotations")
-
-flags.DEFINE_string("cache_dir", default='/data2/COSMOS/cache64',
-                    help="Path to directory storing a cache of the training set")
 
 FLAGS = flags.FLAGS
 
@@ -86,18 +70,24 @@ def make_loglikelihood_fn(type):
     if type == 'Fourier':
         def loglikelihood_fn(xin, yin, features):
             size = xin.get_shape().as_list()[1]
-
             # Apply PSF to output of network
             x = tf.spectral.irfft2d(tf.spectral.rfft2d(xin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
             y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'] / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
 
             pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
-            pz /= size**2
             return -pz
-    else:
+    elif type == 'Pixel':
         def loglikelihood_fn(xin, yin, features):
-            pz = tf.reduce_sum(tf.abs(xin - yin)**2, axis=[-1, -2, -3])
-            return -pz
+            y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'])
+
+            # Regularisation loss
+            lreg = tf.reduce_sum(yin[:,:,0]**2, axis=[-1, -2])
+
+            pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - y)**2, axis=[-1, -2])
+            return -pz - 0.001*lreg
+    else:
+        raise NotImplemented()
+
     return loglikelihood_fn
 
 def main(argv):
@@ -110,7 +100,7 @@ def main(argv):
                                         params['activation'], FLAGS.latent_size)
     params["decoder_fn"] = make_decoder(FLAGS.base_depth, FLAGS.num_stages,
                                         params['activation'], FLAGS.latent_size)
-    params['iaf_size'] = [[256,256],[256,256]]
+    params['iaf_size'] = [[256,256], [256,256], [256,256]]
 
     tf.gfile.MakeDirs(FLAGS.model_dir)
     tf.gfile.MakeDirs(FLAGS.cache_dir)

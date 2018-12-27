@@ -7,7 +7,7 @@ def resnet_decoder(code,
                      output_size=64,
                      output_channels=1,
                      activation=tf.nn.leaky_relu,
-                     is_training=True, reuse=None, scope=None):
+                     is_training=True, reuse=tf.AUTO_REUSE, scope=None):
     """
     Defines a generator network
 
@@ -48,7 +48,7 @@ def resnet_encoder(inputs,
                    num_stages=1,
                    latent_size=128,
                    activation=tf.nn.leaky_relu,
-                   is_training=True, reuse=None, scope=None):
+                   is_training=True, reuse=tf.AUTO_REUSE, scope=None):
     """Defines an encoder network based on resnet blocks
     """
     with tf.variable_scope(scope, [inputs], reuse=reuse) as sc:

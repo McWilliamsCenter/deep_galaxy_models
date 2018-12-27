@@ -8,7 +8,7 @@ import numpy as np
 tfd = tfp.distributions
 tfb = tfp.bijectors
 
-__all__ = ['masked_autoregressive_conditional_template']
+__all__ = ['masked_autoregressive_conditional_template', '_clip_by_value_preserve_grad']
 
 def masked_autoregressive_conditional_template(hidden_layers,
                                             conditional_tensor,

@@ -10,25 +10,6 @@ tfb = tfp.bijectors
 
 __all__ = ['FlowEstimator']
 
-# def make_flow_spec(flow_fn, cond_size, latent_size):
-#     # flow_fn is a trainable bijector
-#     # cond_size is the size of the conditional tensor on which to condition the
-#     def flow_module_fn():
-#         cond_layer = tf.placeholder(tf.float32, shape=[None, cond_size])
-#
-#         # Creates the bijector and flow
-#         with tf.variable_scope("flow", use_resource=False):
-#             flow = flow_fn(cond_layer)
-#
-#         input_layer = tf.placeholder(tf.float32, shape=[None, latent_size])
-#         hub.add_signature(inputs={'condition': cond_layer, 'x': input_layer},
-#                           outputs=flow.log_prob(input_layer), name="log_prob")
-#
-#         hub.add_signature(inputs=cond_layer,
-#                           outputs=flow.sample(tf.shape(cond_layer)[0]), name="sample")
-#
-#     return hub.create_module_spec(flow_module_fn)
-
 
 def flow_model_fn(features, labels, mode, params, config):
     """
@@ -36,22 +17,36 @@ def flow_model_fn(features, labels, mode, params, config):
     """
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-    y = features['y']
-    flow = params['flow_fn'](y)
 
     if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = flow.sample(tf.shape(y)[0])
+        y = features
+        def flow_module_spec():
+            inputs = {k: tf.placeholder(tf.float32, shape=[None]) for k in y.keys()}
+            cond_layer = tf.concat([tf.expand_dims(inputs[k], axis=1) for k in inputs.keys()],axis=1)
+            flow = params['flow_fn'](cond_layer, is_training)
+            hub.add_signature(inputs=inputs,
+                              outputs=flow.sample(tf.shape(cond_layer)[0]))
+
+        flow_spec = hub.create_module_spec(flow_module_spec)
+        flow = hub.Module(flow_spec, name='flow_module')
+        hub.register_module_for_export(flow, "code_sampler")
+        predictions = {'code': flow(y)}
         return tf.estimator.EstimatorSpec(mode=mode,
                                           predictions=predictions)
-    # Extract input images
-    x = features['x']
 
-    # Loads an encoding function to work on the images
+    x = features['x']
+    y = features['y']
+
+    # Loads the encoding function to work on the images
     encoder = hub.Module(params['encoder_module'], trainable=False)
-    code = encoder({'image': x, 'sample_shape': 1}, as_dict=True)
+    code = encoder(x, as_dict=True)
+
+    with tf.variable_scope("flow_module"):
+        cond_layer = tf.concat([tf.expand_dims(y[k], axis=1) for k in y.keys()],axis=1)
+        flow = params['flow_fn'](cond_layer, is_training)
+        loglikelihood = flow.log_prob(code['sample'])
 
     # This is the loglikelihood of a batch of images
-    loglikelihood = flow.log_prob(tf.reshape(code['sample'], (-1, code['sample'].shape[-1])))
     tf.summary.scalar('loglikelihood', tf.reduce_mean(loglikelihood))
     loss = - tf.reduce_mean(loglikelihood)
 
@@ -83,9 +78,8 @@ class FlowEstimator(tf.estimator.Estimator):
     def __init__(self,
                  flow_fn=None,
                  encoder_module=None,
-                 sample_shape=1,
                  learning_rate=0.001,
-                 max_steps=5001,
+                 max_steps=50001,
                  model_dir=None, config=None):
         """
         Args:
@@ -94,7 +88,6 @@ class FlowEstimator(tf.estimator.Estimator):
         params = {}
         params['flow_fn'] = flow_fn
         params['encoder_module'] = encoder_module
-        params['sample_shape'] = sample_shape
         params['learning_rate'] = learning_rate
         params['max_steps'] = max_steps
 
