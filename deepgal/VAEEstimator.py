@@ -103,6 +103,7 @@ def vae_model_fn(features, labels, mode, params, config):
             log_prob = encoding.log_prob(sample)
             hub.add_signature(inputs=input_layer,
                               outputs={'sample': sample, 'log_prob': log_prob})
+
         encoder_spec = hub.create_module_spec(make_encoder_spec)
         encoder = hub.Module(encoder_spec, name="encoder_module")
 
@@ -110,6 +111,7 @@ def vae_model_fn(features, labels, mode, params, config):
             code = tf.placeholder(tf.float32, shape=[None, latent_size])
             net = decoder_model(code)
             hub.add_signature(inputs=code, outputs=net)
+
         decoder_spec = hub.create_module_spec(make_decoder_spec)
         decoder = hub.Module(decoder_spec, name="decoder_module")
 

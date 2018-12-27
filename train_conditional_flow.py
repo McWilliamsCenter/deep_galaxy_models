@@ -11,8 +11,8 @@ from deepgal.flow import masked_autoregressive_conditional_template
 from deepgal.FlowEstimator import flow_model_fn
 
 # Encoder parameter
-flags.DEFINE_string("encoder_module", default=None,
-                     help="Encoder module.")
+flags.DEFINE_string("vae_modules", default=None,
+                     help="Path to encoder and decoder modules.")
 
 # Model parameters
 flags.DEFINE_integer("maf_layers", default=3,
@@ -97,6 +97,8 @@ def main(argv):
 
     params = FLAGS.flag_values_dict()
     params["activation"] = getattr(tf.nn, params["activation"])
+    params["encoder_module"] = params["vae_modules"]+'/encoder'
+    params["decoder_module"] = params["vae_modules"]+'/decoder'
     params["flow_fn"] = make_flow_fn(latent_size=params["latent_size"],
                                      maf_layers=params["maf_layers"],
                                      maf_size=params["maf_size"],
@@ -120,9 +122,26 @@ def main(argv):
 
     estimator.train(input_fn=input_fn, max_steps=FLAGS.max_steps)
 
+    # Export conditional flow
     exporter = hub.LatestModuleExporter("tf_hub",
         tf.estimator.export.build_raw_serving_input_receiver_fn(input_fn()[0]['y']))
-    exporter.export(estimator, FLAGS.export_dir, estimator.latest_checkpoint())
+    flow_path = exporter.export(estimator, FLAGS.export_dir, estimator.latest_checkpoint())
+
+    # Now, export complete generative model
+    def generative_model_fn():
+        inputs = {k: tf.placeholder(tf.float32, shape=[None]) for k in params['conditions']}
+        code = hub.Module(flow_path.decode()+'/code_sampler')
+        decoder = hub.Module(params['decoder_module'])
+        hub.add_signature(inputs=inputs, outputs=decoder(code(inputs)))
+        hub.attach_message("stamp_size", tf.train.Int64List(value=[params["stamp_size"]]))
+        hub.attach_message("pixel_size", tf.train.FloatList(value=[params["pixel_size"]]))
+    generative_model_spec = hub.create_module_spec(generative_model_fn)
+    generative_model = hub.Module(generative_model_spec, name="flow_module")
+
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        generative_model.export(flow_path.decode()+'/generator', sess)
+    print("Model exported in "+flow_path.decode())
 
 if __name__ == "__main__":
     tf.app.run()
