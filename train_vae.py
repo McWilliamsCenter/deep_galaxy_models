@@ -50,28 +50,6 @@ flags.DEFINE_string("export_dir", default="modules/vae",
 flags.DEFINE_integer("save_checkpoints_steps", default=1000,
                      help="Frequency at which to save checkpoints.")
 
-# Input pipeline parameters
-flags.DEFINE_string("data_dir", default='/usr/local/share/galsim/COSMOS_25.2_training_sample',
-                    help="Directory to the GalSim COSMOS data")
-
-flags.DEFINE_string("filename", default='real_galaxy_catalog_25.2.fits',
-                    help="Name of the COSMOS dataset")
-
-flags.DEFINE_integer("stamp_size", default=64,
-                    help="Size of the postage stamps")
-
-flags.DEFINE_float("pixel_size", default=0.03,
-                    help="Pixel size in arcsec")
-
-flags.DEFINE_integer("input_nprocs", default=12,
-                    help="Number of parallel threads for the input pipeline")
-
-flags.DEFINE_integer("nrepeat", default=4,
-                    help="Number of times the dataset is augmented by rotations")
-
-flags.DEFINE_string("cache_dir", default='/data2/COSMOS/cache64',
-                    help="Path to directory storing a cache of the training set")
-
 FLAGS = flags.FLAGS
 
 def make_decoder(base_depth, num_stages, activation, latent_size):
@@ -101,8 +79,12 @@ def make_loglikelihood_fn(type):
     elif type == 'Pixel':
         def loglikelihood_fn(xin, yin, features):
             y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'])
+
+            # Regularisation loss
+            lreg = tf.reduce_sum(yin[:,:,0]**2, axis=[-1, -2])
+
             pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - y)**2, axis=[-1, -2])
-            return -pz
+            return -pz - 0.001*lreg
     else:
         raise NotImplemented()
 

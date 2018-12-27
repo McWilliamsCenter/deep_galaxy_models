@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import numpy as np
+from functools import partial
+from absl import flags
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import tensorflow_probability as tfp
@@ -10,6 +12,7 @@ tfd = tfp.distributions
 tfb = tfp.bijectors
 from .flow import _clip_by_value_preserve_grad
 
+
 __all__ = ['VAEEstimator', 'vae_model_fn']
 
 
@@ -17,13 +20,9 @@ def _softplus_inverse(x):
     """Helper which computes the function inverse of `tf.nn.softplus`."""
     return tf.log(tf.math.expm1(x))
 
-def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size, is_training):
-    # Create a module for the encoding task
-    def encoder_module_fn():
-        input_layer = tf.placeholder(tf.float32, shape=[None, image_size, image_size, n_channels])
-        n_samples = tf.placeholder(tf.int32, shape=[])
-
-        net = encoder_fn(input_layer, is_training=is_training)
+def make_encoder_fn(encoder_fn, latent_size, iaf_size, is_training):
+    def encoder_module_fn(images):
+        net = encoder_fn(images, is_training=is_training)
         loc, scale  = tf.split(net, [latent_size, latent_size], axis=-1)
 
         encoding = tfd.MultivariateNormalDiag(
@@ -31,37 +30,22 @@ def make_encoder_spec(encoder_fn, n_channels, image_size, latent_size, iaf_size,
             scale_diag=tf.nn.softplus(scale + _softplus_inverse(1.0)),
             name="code")
 
-        # # Use IAF for modeling the approximate posterior
-        # chain = []
-        # def get_permutation(name):
-        #     return tf.get_variable(name, initializer=np.random.permutation(latent_size).astype("int32"), trainable=False)
-        # for i,s in enumerate(iaf_size):
-        #     chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
-        #                     shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-        #                     hidden_layers=s,
-        #                     shift_only=True))))
-        #     chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
-        #
-        # iaf = tfd.TransformedDistribution(
-        #             distribution=encoding,
-        #             bijector=tfb.Chain(chain))
-        iaf = encoding
-        sample = iaf.sample(n_samples)
-        log_prob = iaf.log_prob(sample)
-        hub.add_signature(inputs={'image': input_layer, 'n_samples': n_samples},
-                          outputs={'sample': sample, 'log_prob': log_prob})
+        # Use IAF for modeling the approximate posterior
+        chain = []
+        def get_permutation(name):
+            return tf.get_variable(name, initializer=np.random.permutation(latent_size).astype("int32"), trainable=False)
+        for i,s in enumerate(iaf_size):
+            chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
+                            shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
+                            hidden_layers=s,
+                            shift_only=True, name='maf%d'%i), is_constant_jacobian=True)))
+            chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
 
-    return hub.create_module_spec(encoder_module_fn)
-
-
-def make_decoder_spec(decoder_fn, latent_size, is_training):
-    # Module for the decoding task, returns an unconvolved light profile
-    def decoder_module_fn():
-        code = tf.placeholder(tf.float32, shape=[None, latent_size])
-        net = decoder_fn(code, is_training=is_training)
-        hub.add_signature(inputs=code, outputs=net)
-
-    return hub.create_module_spec(decoder_module_fn)
+        iaf = tfd.TransformedDistribution(
+                    distribution=encoding,
+                    bijector=tfb.Chain(chain))
+        return iaf
+    return encoder_module_fn
 
 
 def pack_images(images, rows, cols):
@@ -94,39 +78,59 @@ def vae_model_fn(features, labels, mode, params, config):
     # Extract input images
     x = features['x']
 
-    with tf.variable_scope("encoder_module") as sc:
-        net = params['encoder_fn'](x, is_training=is_training)
-        loc, scale  = tf.split(net, [params['latent_size'], params['latent_size']], axis=-1)
+    # Build model functions
+    encoder_model = make_encoder_fn(params['encoder_fn'],
+                                      params['latent_size'],
+                                      params['iaf_size'], is_training=is_training)
+    decoder_model = partial(params['decoder_fn'], is_training=is_training)
 
-        encoding = tfd.MultivariateNormalDiag(
-            loc=loc,
-            scale_diag=tf.nn.softplus(scale + _softplus_inverse(1.0)),
-            name="code")
-
-        # Use IAF for modeling the approximate posterior
-        chain = []
-        def get_permutation(name):
-            return tf.get_variable(name, initializer=np.random.permutation(params['latent_size']).astype("int32"), trainable=False)
-        for i,s in enumerate(params['iaf_size']):
-            chain.append(tfb.Invert(tfb.MaskedAutoregressiveFlow(
-                            shift_and_log_scale_fn=tfb.masked_autoregressive_default_template(
-                            hidden_layers=s,
-                            shift_only=True, name='maf%d'%i), is_constant_jacobian=True)))
-            chain.append(tfb.Permute(permutation=get_permutation(name='permutation_%d'%i)))
-
-        iaf = tfd.TransformedDistribution(
-                    distribution=encoding,
-                    bijector=tfb.Chain(chain))
-
-        code = iaf.sample()
-        log_prob = iaf.log_prob(code)
-
+    # Define latent prior
     prior = tfd.MultivariateNormalDiag(
                 loc=tf.zeros([params['latent_size']]),
                 scale_identity_multiplier=1.0)
 
+    # In predict mode, we encapsulate the model inside a module for exporting
+    # This is because of a weird bug that makes training MAF unstable inside a
+    # module
+    if mode == tf.estimator.ModeKeys.PREDICT:
+        image_size = x.shape[-2]
+        n_channels = x.shape[-1]
+        latent_size = params['latent_size']
+        def make_encoder_spec():
+            input_layer = tf.placeholder(tf.float32, shape=[None, image_size, image_size, n_channels])
+            encoding = encoder_model(input_layer)
+            sample = encoding.sample()
+            log_prob = encoding.log_prob(sample)
+            hub.add_signature(inputs=input_layer,
+                              outputs={'sample': sample, 'log_prob': log_prob})
+        encoder_spec = hub.create_module_spec(make_encoder_spec)
+        encoder = hub.Module(encoder_spec, name="encoder_module")
+
+        def make_decoder_spec():
+            code = tf.placeholder(tf.float32, shape=[None, latent_size])
+            net = decoder_model(code)
+            hub.add_signature(inputs=code, outputs=net)
+        decoder_spec = hub.create_module_spec(make_decoder_spec)
+        decoder = hub.Module(decoder_spec, name="decoder_module")
+
+        # Register and export encoder and decoder modules
+        hub.register_module_for_export(encoder, "encoder")
+        hub.register_module_for_export(decoder, "decoder")
+
+        code = encoder(x, as_dict=True)
+        recon = decoder(code['sample'])
+        predictions = {'code': code['sample'], 'reconstruction': recon,
+                       'log_prob':code['log_prob'], 'input':x}
+        return tf.estimator.EstimatorSpec(mode=mode,
+                                          predictions=predictions)
+
+    with tf.variable_scope("encoder_module") as sc:
+        encoding = encoder_model(x)
+        code = encoding.sample()
+        log_prob = encoding.log_prob(code)
+
     with tf.variable_scope("decoder_module") as sc:
-        recon = params['decoder_fn'](code, is_training=is_training)
+        recon = decoder_model(code)
 
     image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
     if params['n_samples'] > 1:
@@ -181,7 +185,6 @@ def vae_model_fn(features, labels, mode, params, config):
                                       loss=loss,
                                       train_op=train_op,
                                       eval_metric_ops=eval_metric_ops)
-
 
 class VAEEstimator(tf.estimator.Estimator):
     """An estimator for Vanilla Variational Auto-Encoders (VAEs).
