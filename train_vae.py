@@ -19,14 +19,14 @@ flags.DEFINE_integer("latent_size", default=128,
 flags.DEFINE_string("activation", default="leaky_relu",
                      help="Activation function for all hidden layers.")
 
-flags.DEFINE_string("loglikelihood", default="Pixel",
+flags.DEFINE_string("loglikelihood", default="SimplePixel",
                      help="Define in which space to compute the likelihood of the data, 'Fourier' or 'Pixel'")
 
 # Training parameters
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.0001,
+flags.DEFINE_float("learning_rate", default=0.001,
                      help="Initial learning rate.")
 
 flags.DEFINE_float("gradient_clipping", default=1.,
@@ -85,6 +85,10 @@ def make_loglikelihood_fn(type):
 
             pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - y)**2, axis=[-1, -2])
             return -pz - 0.001*lreg
+    elif type == 'SimplePixel':
+        def loglikelihood_fn(xin, yin, features):
+            pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - yin[:,:,:,0])**2, axis=[-1, -2])
+            return -pz
     else:
         raise NotImplemented()
 
