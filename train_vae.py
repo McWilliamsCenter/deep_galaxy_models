@@ -26,7 +26,7 @@ flags.DEFINE_string("loglikelihood", default="SimplePixel",
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.001,
+flags.DEFINE_float("learning_rate", default=0.0002,
                      help="Initial learning rate.")
 
 flags.DEFINE_float("gradient_clipping", default=1.,
