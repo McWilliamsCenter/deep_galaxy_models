@@ -76,12 +76,12 @@ def vae_model_fn(features, labels, mode, params, config):
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
     # Extract input images
-    x = features['x']
+    x = tf.math.asinh(features['x']/(0.006*20))*(0.006*20))
 
     # Build model functions
     encoder_model = make_encoder_fn(params['encoder_fn'],
-                                      params['latent_size'],
-                                      params['iaf_size'], is_training=is_training)
+                                    params['latent_size'],
+                                    params['iaf_size'], is_training=is_training)
     decoder_model = partial(params['decoder_fn'], is_training=is_training)
 
     # Define latent prior
@@ -138,7 +138,7 @@ def vae_model_fn(features, labels, mode, params, config):
     if params['n_samples'] > 1:
         r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[0,:,:,:,0])*features['psf']),axis=-1)
     else:
-        r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
+        r = recon # tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
     image_tile_summary("recon", tf.to_float(r[:16]), rows=4, cols=4)
     image_tile_summary("diff", tf.to_float(x[:16] - r[:16]), rows=4, cols=4)
 

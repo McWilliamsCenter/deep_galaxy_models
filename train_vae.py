@@ -13,13 +13,13 @@ flags.DEFINE_integer("base_depth", default=128,
 flags.DEFINE_integer("num_stages", default=1,
                      help="Number of residual network stages")
 
-flags.DEFINE_integer("latent_size", default=128,
+flags.DEFINE_integer("latent_size", default=64,
                      help="Number of dimensions in the latent code (z).")
 
 flags.DEFINE_string("activation", default="leaky_relu",
                      help="Activation function for all hidden layers.")
 
-flags.DEFINE_string("loglikelihood", default="SimplePixel",
+flags.DEFINE_string("loglikelihood", default="Fourier",
                      help="Define in which space to compute the likelihood of the data, 'Fourier' or 'Pixel'")
 
 # Training parameters
@@ -72,7 +72,7 @@ def make_loglikelihood_fn(type):
             size = xin.get_shape().as_list()[1]
             # Apply PSF to output of network
             x = tf.spectral.irfft2d(tf.spectral.rfft2d(xin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
-            y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'] / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
+            y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)) # * features['psf']
 
             pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
             return -pz
@@ -87,8 +87,9 @@ def make_loglikelihood_fn(type):
             return -pz - 0.001*lreg
     elif type == 'SimplePixel':
         def loglikelihood_fn(xin, yin, features):
+            #xin = tf.math.asinh(xin/(0.006*10))*(0.006*10)
             pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - yin[:,:,:,0])**2, axis=[-1, -2])
-            return -pz
+            return -pz*10
     else:
         raise NotImplemented()
 
@@ -104,7 +105,7 @@ def main(argv):
                                         params['activation'], FLAGS.latent_size)
     params["decoder_fn"] = make_decoder(FLAGS.base_depth, FLAGS.num_stages,
                                         params['activation'], FLAGS.latent_size)
-    params['iaf_size'] = []# [[256,256], [256,256], [256,256]]
+    params['iaf_size'] = [[256,256], [256,256], [256,256], [256,256]]
 
     tf.gfile.MakeDirs(FLAGS.model_dir)
     tf.gfile.MakeDirs(FLAGS.cache_dir)
