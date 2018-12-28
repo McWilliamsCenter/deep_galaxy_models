@@ -104,7 +104,7 @@ def main(argv):
                                         params['activation'], FLAGS.latent_size)
     params["decoder_fn"] = make_decoder(FLAGS.base_depth, FLAGS.num_stages,
                                         params['activation'], FLAGS.latent_size)
-    params['iaf_size'] = [[256,256], [256,256], [256,256]]
+    params['iaf_size'] = []# [[256,256], [256,256], [256,256]]
 
     tf.gfile.MakeDirs(FLAGS.model_dir)
     tf.gfile.MakeDirs(FLAGS.cache_dir)
