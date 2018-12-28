@@ -76,7 +76,7 @@ def vae_model_fn(features, labels, mode, params, config):
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
     # Extract input images
-    x = tf.math.asinh(features['x']/(0.006*20))*(0.006*20))
+    x = tf.math.asinh(features['x']/(0.006*20))*(0.006*20)
 
     # Build model functions
     encoder_model = make_encoder_fn(params['encoder_fn'],
