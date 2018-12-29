@@ -25,10 +25,10 @@ flags.DEFINE_float("clipping", default=1.,
 flags.DEFINE_integer("input_nprocs", default=12,
                     help="Number of parallel threads for the input pipeline")
 
-flags.DEFINE_integer("nrepeat", default=4,
+flags.DEFINE_integer("nrepeat", default=10,
                     help="Number of times the dataset is augmented by rotations")
 
-flags.DEFINE_string("cache_dir", default='/data2/COSMOS/cache64',
+flags.DEFINE_string("cache_dir", default='/data2/COSMOS/cache64_10',
                     help="Path to directory storing a cache of the training set")
 
 flags.DEFINE_list("conditions", default=[],
@@ -38,7 +38,7 @@ flags.DEFINE_list("conditions", default=[],
 def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
                          conditions=[],
                          batch_size=128, stamp_size=64, pixel_size=0.03, clip=1.,
-                         input_nprocs=None, nrepeat=4, cache_dir=None,
+                         input_nprocs=None, nrepeat=10, cache_dir=None,
                          buffer_size=20000, **kwargs):
     """
     This function creates an input pipeline by drawing images from GalSim
@@ -75,17 +75,15 @@ def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
         dset = dset.repeat().shuffle(buffer_size=buffer_size).batch(batch_size).prefetch(16)
         iterator = dset.make_one_shot_iterator()
         if len(conditions) == 0:
-            batch_im, batch_psf, batch_ps, batch_nstd = iterator.get_next()
+            batch_im, batch_psf, batch_ps = iterator.get_next()
             return {'x': tf.clip_by_value(batch_im, -clip, clip),
                     'psf':batch_psf,
-                    'ps':batch_ps,
-                    'nstd':batch_nstd}, tf.clip_by_value(batch_im,-clip,clip)
+                    'ps':batch_ps}, tf.clip_by_value(batch_im,-clip,clip)
         else:
-            (batch_im, batch_psf, batch_ps, batch_nstd), batch_cond = iterator.get_next()
+            (batch_im, batch_psf, batch_ps), batch_cond = iterator.get_next()
             return {'x': tf.clip_by_value(batch_im,-clip,clip),
                     'psf':batch_psf,
                     'ps':batch_ps,
-                    'nstd':batch_nstd,
                     'y': {k:batch_cond[i] for i,k in enumerate(conditions)}}, tf.clip_by_value(batch_im,-clip,clip)
     return training_fn
 
@@ -129,8 +127,7 @@ def get_postage_stamp_map(real_galaxy_catalog, stamp_size=64, pixel_size=0.03, p
         ims = np.stack([elem[0] for elem in res])
         psf = np.stack([elem[1] for elem in res])
         pss = np.stack([elem[2] for elem in res])
-        nstd = np.stack([elem[3] for elem in res])
-        return ims, psf, pss, nstd
+        return ims, psf, pss
 
     def func(x):
         im, psf ,ps, nstd =  tf.py_func(_processing, [x],
@@ -139,8 +136,7 @@ def get_postage_stamp_map(real_galaxy_catalog, stamp_size=64, pixel_size=0.03, p
         im = tf.clip_by_value(tf.expand_dims(im, axis=-1),-1,1)
         psf.set_shape([None, stamp_size, stamp_size // 2 + 1])
         ps.set_shape([None, stamp_size, stamp_size // 2 + 1])
-        nstd.set_shape([None])
-        return im, psf, ps, nstd
+        return im, psf, ps
 
     return func
 
@@ -210,7 +206,4 @@ def _make_galaxy(params):
     # Apply mask to power spectrum so that it is very large outside maxk
     ps = np.where(mask, np.log(ps**2), 10).astype('float32')
 
-    # Extract the noise standard deviation for simpler access
-    noise_std = np.sqrt(g.noise.getVariance()).astype('float32')
-
-    return im, im_psf, ps, noise_std
+    return im, im_psf, ps
