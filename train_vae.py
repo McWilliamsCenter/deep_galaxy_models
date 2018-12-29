@@ -5,6 +5,7 @@ from absl import flags
 from deepgal.nets import resnet_decoder, resnet_encoder
 from deepgal.galsim import build_input_pipeline
 from deepgal.VAEEstimator import vae_model_fn
+from deepgal.flow import _clip_by_value_preserve_grad
 
 # Model parameters
 flags.DEFINE_integer("base_depth", default=128,
@@ -58,11 +59,12 @@ def make_decoder(base_depth, num_stages, activation, latent_size, range_compress
     def decoder_fn(code, is_training):
         images = resnet_decoder(code, is_training=is_training, base_depth=base_depth, num_stages=num_stages,
                                 activation=activation, scope='decoder')
+        # images = tf.nn.leaky_relu(images, alpha=0.01)
         # Clipping values to prevent explosion during training
-        if range_compression > 0:
-            if is_training:
-                images = tf.clip_by_value(images, -1., 1.)
-            images = tf.sinh(images / range_compression) * range_compression
+        # if range_compression > 0:
+        #     if is_training:
+        #         images = tf.clip_by_value(images, -1., 1.)
+        #     images = tf.sinh(images / range_compression) * range_compression
         return images
     return decoder_fn
 
