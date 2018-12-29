@@ -31,7 +31,7 @@ flags.DEFINE_float("range_compression", default=0.003*20,
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.0002,
+flags.DEFINE_float("learning_rate", default=0.0001,
                      help="Initial learning rate.")
 
 flags.DEFINE_float("gradient_clipping", default=1.,
@@ -83,7 +83,9 @@ def make_loglikelihood_fn(type):
             x = tf.spectral.rfft2d(xin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)
             y = tf.spectral.rfft2d(yin[...,0])  * features['psf'] / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)
 
-            pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
+            # Compute FFT normalization factor
+            size = xin.get_shape().as_list()[1]
+            pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2]) / size**2
             return -pz
     elif type == 'Pixel':
         def loglikelihood_fn(xin, yin, features):
