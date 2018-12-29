@@ -130,8 +130,8 @@ def get_postage_stamp_map(real_galaxy_catalog, stamp_size=64, pixel_size=0.03, p
         return ims, psf, pss
 
     def func(x):
-        im, psf ,ps, nstd =  tf.py_func(_processing, [x],
-                                    [tf.float32, tf.complex64, tf.float32, tf.float32])
+        im, psf ,ps =  tf.py_func(_processing, [x],
+                                    [tf.float32, tf.complex64, tf.float32])
         im.set_shape([None, stamp_size, stamp_size])
         im = tf.clip_by_value(tf.expand_dims(im, axis=-1),-1,1)
         psf.set_shape([None, stamp_size, stamp_size // 2 + 1])
