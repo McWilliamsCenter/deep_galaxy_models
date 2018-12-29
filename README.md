@@ -21,12 +21,12 @@ download it here:
 Training this model is a 2 step process, first train a normal variational
 autoencoder, then train a conditional flow model to sample in the latent space.
 
-```
+```sh
 $ python train_vae.py --model_dir=models/vae --export_dir=modules/vae
 ```
 Then use the exported encoder and decoder modules to train a conditional sampling
 model using the desired properties, for instance magnitude, size and redshift
-```
+```sh
 $ python train_conditional_flow.py --conditions=mag_auto,flux_radius,zphot \
                                    --vae_modules=modules/vae \
                                    --model_dir=/data2/deepgal/FourierBasedFlow
@@ -35,6 +35,21 @@ $ python train_conditional_flow.py --conditions=mag_auto,flux_radius,zphot \
 
 use the `--help` option to see different training options
 
+## Exporting a module for GalSim
+
+GalSim will expect a module with a number of input quantities
+such as `mag_auto` or `flux_radius`, and outputting an *unconvolved* light
+profile on a postage stamp. In addition, the module should store as attached
+messages the size of the postage stamp, and the pixel scale. All of this is
+done by `train_conditional_flow.py` which saves a module named `generator` in
+the requested `export_dir`.
+
+To archive the module before making available online, do the following from inside the `generator` folder:
+```sh
+$ tar -cz -f ../generative_model.tar.gz --owner=0 --group=0 .
+```
+This will compress the module as a tar.gz archive, which can now be hosted online
+and directly ingested by GalSim.
 
 ## Demos
 
