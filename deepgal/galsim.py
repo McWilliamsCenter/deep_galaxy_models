@@ -2,10 +2,44 @@ import tensorflow as tf
 from multiprocessing import Pool
 import numpy as np
 import galsim
+from absl import flags
+
+FLAGS = flags.FLAGS
+
+# Input pipeline parameters
+flags.DEFINE_string("data_dir", default='/usr/local/share/galsim/COSMOS_25.2_training_sample',
+                    help="Directory to the GalSim COSMOS data")
+
+flags.DEFINE_string("filename", default='real_galaxy_catalog_25.2.fits',
+                    help="Name of the COSMOS dataset")
+
+flags.DEFINE_integer("stamp_size", default=64,
+                    help="Size of the postage stamps")
+
+flags.DEFINE_float("pixel_size", default=0.03,
+                    help="Pixel size in arcsec")
+
+flags.DEFINE_float("clipping", default=1.,
+                    help="Clip pixels by this value")
+
+flags.DEFINE_integer("input_nprocs", default=12,
+                    help="Number of parallel threads for the input pipeline")
+
+flags.DEFINE_integer("nrepeat", default=4,
+                    help="Number of times the dataset is augmented by rotations")
+
+flags.DEFINE_string("cache_dir", default='/data2/COSMOS/cache64',
+                    help="Path to directory storing a cache of the training set")
+
+flags.DEFINE_list("conditions", default=[],
+                    help="List of catalog fields to extract")
+
 
 def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
-                         batch_size=128, stamp_size=64, pixel_size=0.03,
-                         input_nprocs=None, nrepeat=4, cache_dir=None, **kwargs):
+                         conditions=[],
+                         batch_size=128, stamp_size=64, pixel_size=0.03, clip=1.,
+                         input_nprocs=None, nrepeat=4, cache_dir=None,
+                         buffer_size=20000, **kwargs):
     """
     This function creates an input pipeline by drawing images from GalSim
 
@@ -13,6 +47,7 @@ def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
     ----------
     dir: Directory for the GalSim data
     filename: Name of the GalSim real catalog
+    conditions: List of catalog quantities to use as conditions
     nrepeat: Number of times the dataset is randomly rotated
     """
     cat = galsim.COSMOSCatalog(dir=data_dir, file_name=filename)
@@ -32,12 +67,26 @@ def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
         dset = dset.repeat(nrepeat)
         if cache_dir is not None:
             dset = dset.cache(cache_dir)
-        dset = dset.repeat().shuffle(buffer_size=20000).batch(128).prefetch(16)
+        if len(conditions) > 0:
+            # Extract from the catalog the desired quantities
+            dset_cond =tf.data.Dataset.zip(tuple([tf.data.Dataset.from_tensor_slices(cat.param_cat[k][cat.orig_index].astype('float32')) for k in conditions]))
+            dset_cond.repeat(nrepeat)
+            dset = dset = tf.data.Dataset.zip((dset, dset_cond))
+        dset = dset.repeat().shuffle(buffer_size=buffer_size).batch(batch_size).prefetch(16)
         iterator = dset.make_one_shot_iterator()
-        batch_im, batch_psf, batch_ps = iterator.get_next()
-        return {'x': tf.clip_by_value(batch_im,-1,1.),
-                'psf':batch_psf,
-                'ps':batch_ps}, tf.clip_by_value(batch_im,-1,1.)
+        if len(conditions) == 0:
+            batch_im, batch_psf, batch_ps, batch_nstd = iterator.get_next()
+            return {'x': tf.clip_by_value(batch_im, -clip, clip),
+                    'psf':batch_psf,
+                    'ps':batch_ps,
+                    'nstd':batch_nstd}, tf.clip_by_value(batch_im,-clip,clip)
+        else:
+            (batch_im, batch_psf, batch_ps, batch_nstd), batch_cond = iterator.get_next()
+            return {'x': tf.clip_by_value(batch_im,-clip,clip),
+                    'psf':batch_psf,
+                    'ps':batch_ps,
+                    'nstd':batch_nstd,
+                    'y': {k:batch_cond[i] for i,k in enumerate(conditions)}}, tf.clip_by_value(batch_im,-clip,clip)
     return training_fn
 
 
@@ -80,16 +129,18 @@ def get_postage_stamp_map(real_galaxy_catalog, stamp_size=64, pixel_size=0.03, p
         ims = np.stack([elem[0] for elem in res])
         psf = np.stack([elem[1] for elem in res])
         pss = np.stack([elem[2] for elem in res])
-        return ims, psf, pss
+        nstd = np.stack([elem[3] for elem in res])
+        return ims, psf, pss, nstd
 
     def func(x):
-        im, psf ,ps =  tf.py_func(_processing, [x],
-                                    [tf.float32, tf.complex64, tf.float32])
+        im, psf ,ps, nstd =  tf.py_func(_processing, [x],
+                                    [tf.float32, tf.complex64, tf.float32, tf.float32])
         im.set_shape([None, stamp_size, stamp_size])
         im = tf.clip_by_value(tf.expand_dims(im, axis=-1),-1,1)
-        psf.set_shape([None,stamp_size, stamp_size // 2 + 1])
-        ps.set_shape([None,stamp_size, stamp_size // 2 + 1])
-        return im, psf, ps
+        psf.set_shape([None, stamp_size, stamp_size // 2 + 1])
+        ps.set_shape([None, stamp_size, stamp_size // 2 + 1])
+        nstd.set_shape([None])
+        return im, psf, ps, nstd
 
     return func
 
@@ -117,11 +168,6 @@ def _make_galaxy(params):
                                   * 2 * np.pi, galsim.radians)
     g = gal.rotate(rotation_angle)
     p = psf.rotate(rotation_angle)
-
-    #p0 = galsim.Gaussian(fwhm=0.06)
-    #imCp0 = galsim.ImageCF(stamp_size, stamp_size, scale=2. *
-    #                     np.pi / (pixel_scale * stamp_size))
-    #p0.drawKImage(image=imCp0)
 
     # Draw the Fourier domain image of the galaxy
     imC = galsim.ImageCF(stamp_size, stamp_size, scale=2. *
@@ -164,4 +210,7 @@ def _make_galaxy(params):
     # Apply mask to power spectrum so that it is very large outside maxk
     ps = np.where(mask, np.log(ps**2), 10).astype('float32')
 
-    return im, im_psf, ps
+    # Extract the noise standard deviation for simpler access
+    noise_std = np.sqrt(g.noise.getVariance()).astype('float32')
+
+    return im, im_psf, ps, noise_std
