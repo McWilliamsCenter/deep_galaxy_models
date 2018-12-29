@@ -89,7 +89,7 @@ def make_loglikelihood_fn(type):
         def loglikelihood_fn(xin, yin, features):
             #xin = tf.math.asinh(xin/(0.006*10))*(0.006*10)
             pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - yin[:,:,:,0])**2, axis=[-1, -2])
-            return -pz*10
+            return -pz*1000
     else:
         raise NotImplemented()
 
