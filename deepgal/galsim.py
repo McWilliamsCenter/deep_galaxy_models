@@ -19,7 +19,7 @@ flags.DEFINE_integer("stamp_size", default=64,
 flags.DEFINE_float("pixel_size", default=0.03,
                     help="Pixel size in arcsec")
 
-flags.DEFINE_float("clipping", default=1.,
+flags.DEFINE_float("clip", default=1.,
                     help="Clip pixels by this value")
 
 flags.DEFINE_integer("input_nprocs", default=12,
