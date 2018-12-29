@@ -7,17 +7,34 @@ the GalSim software.
 
   - GalSim: See here to install it: https://github.com/GalSim-developers/GalSim
   - Tensorflow
-  - Tensorflow Probability
-  - Tensorflow Hub
+  - Tensorflow Probability `pip install --user tensorflow-probability`
+  - Tensorflow Hub `pip install --user tensorflow-hub`
+
+The training data based on the COSMOS catalog is also required, see how to
+download it here:
+
 
 ## To train a model
 
-Simply use the provided training function:
+### VAE with conditional flow sampling
+
+Training this model is a 2 step process, first train a normal variational
+autoencoder, then train a conditional flow model to sample in the latent space.
 
 ```
-$ python train_vae.py --model_dir=models/vae
+$ python train_vae.py --model_dir=models/vae --export_dir=modules/vae
 ```
+Then use the exported encoder and decoder modules to train a conditional sampling
+model using the desired properties, for instance magnitude, size and redshift
+```
+$ python train_conditional_flow.py --conditions=mag_auto,flux_radius,zphot \
+                                   --vae_modules=modules/vae \
+                                   --model_dir=/data2/deepgal/FourierBasedFlow
+```
+
+
 use the `--help` option to see different training options
+
 
 ## Demos
 
