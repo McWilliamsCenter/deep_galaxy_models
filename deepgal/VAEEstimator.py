@@ -165,7 +165,6 @@ def vae_model_fn(features, labels, mode, params, config):
         train_op = optimizer.apply_gradients(clipped_grads_and_vars, global_step=global_step)
 
     eval_metric_ops = {
-        "elbo/importance_weighted": tf.metrics.mean(importance_weighted_elbo),
         "elbo": tf.metrics.mean(tf.reduce_mean(elbo)),
         "kl": tf.metrics.mean(tf.reduce_mean(kl)),
         "loglikelihood": tf.metrics.mean(tf.reduce_mean(loglikelihood))}

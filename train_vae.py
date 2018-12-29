@@ -102,9 +102,9 @@ def main(argv):
     params["activation"] = getattr(tf.nn, params["activation"])
     params["loglikelihood_fn"] = make_loglikelihood_fn(FLAGS.loglikelihood)
     params["encoder_fn"] = make_encoder(FLAGS.base_depth, FLAGS.num_stages,
-                                        params['activation'], FLAGS.latent_size)
+                                        params['activation'], FLAGS.latent_size, FLAGS.range_compression)
     params["decoder_fn"] = make_decoder(FLAGS.base_depth, FLAGS.num_stages,
-                                        params['activation'], FLAGS.latent_size)
+                                        params['activation'], FLAGS.latent_size, FLAGS.range_compression)
     params['iaf_size'] = [[512, 512], [512, 512], [512, 512], [512, 512]]
 
     tf.gfile.MakeDirs(FLAGS.model_dir)
