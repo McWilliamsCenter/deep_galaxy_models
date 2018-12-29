@@ -76,7 +76,7 @@ def vae_model_fn(features, labels, mode, params, config):
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
     # Extract input images
-    x = tf.math.asinh(features['x']/(0.006*10))*(0.006*10)
+    x = features['x']
 
     # Build model functions
     encoder_model = make_encoder_fn(params['encoder_fn'],
@@ -135,18 +135,9 @@ def vae_model_fn(features, labels, mode, params, config):
         recon = decoder_model(code)
 
     image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
-    if params['n_samples'] > 1:
-        r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[0,:,:,:,0])*features['psf']),axis=-1)
-    else:
-        r = recon # tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
+    r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
     image_tile_summary("recon", tf.to_float(r[:16]), rows=4, cols=4)
     image_tile_summary("diff", tf.to_float(x[:16] - r[:16]), rows=4, cols=4)
-
-    if mode == tf.estimator.ModeKeys.PREDICT:
-        z = prior.sample(params['n_samples'])
-        image =  params['decoder_fn'](tf.reshape(z, (-1, params['latent_size'])), is_training=False)
-        predictions = {'code': z, 'image': r, 'truth':x}
-        return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
     # This is the loglikelihood of a batch of images
     loglikelihood = params['loglikelihood_fn'](x, recon, features)
@@ -159,10 +150,6 @@ def vae_model_fn(features, labels, mode, params, config):
 
     loss = - tf.reduce_mean(elbo)
     tf.summary.scalar("elbo", tf.reduce_mean(elbo))
-
-    importance_weighted_elbo = tf.reduce_mean(
-      tf.reduce_logsumexp(elbo, axis=0) - tf.log(tf.to_float(params['n_samples'])))
-    tf.summary.scalar("elbo/importance_weighted", importance_weighted_elbo)
 
     # Training of the model
     global_step = tf.train.get_or_create_global_step()
@@ -198,7 +185,6 @@ class VAEEstimator(tf.estimator.Estimator):
                  loglikelihood_fn=None,
                  latent_size=16,
                  kl_weight=0.001,
-                 n_samples=16,
                  gradient_clipping=100,
                  iaf_size=[[256,256],[256,256]],
                  learning_rate=0.001,
@@ -213,7 +199,6 @@ class VAEEstimator(tf.estimator.Estimator):
         params['decoder_fn'] = decoder_fn
         params['loglikelihood_fn'] = loglikelihood_fn
         params['latent_size'] = latent_size
-        params['n_samples'] = n_samples
         params['iaf_size'] = iaf_size
         params['kl_weight'] = kl_weight
         params['learning_rate'] = learning_rate

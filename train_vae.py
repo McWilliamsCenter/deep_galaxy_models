@@ -22,6 +22,11 @@ flags.DEFINE_string("activation", default="leaky_relu",
 flags.DEFINE_string("loglikelihood", default="Fourier",
                      help="Define in which space to compute the likelihood of the data, 'Fourier' or 'Pixel'")
 
+flags.DEFINE_float("range_compression", default=0.003*20,
+                     help="Apply arcsinh range compression to the images."
+                     "Default is based on 20x noise standard deviation on COSMOS images at native resolution"
+                     "Set to negative value to disable")
+
 # Training parameters
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
@@ -38,9 +43,6 @@ flags.DEFINE_float("kl_weight", default=0.001,
 flags.DEFINE_integer("max_steps", default=250001,
                      help="Number of training steps to run.")
 
-flags.DEFINE_integer("n_samples", default=1,
-                     help="Number of samples to use in encoding.")
-
 flags.DEFINE_string("model_dir", default=os.path.join(os.getenv("TEST_TMPDIR", "/tmp"), "vae/"),
                      help="Directory to put the model's fit.")
 
@@ -52,15 +54,24 @@ flags.DEFINE_integer("save_checkpoints_steps", default=1000,
 
 FLAGS = flags.FLAGS
 
-def make_decoder(base_depth, num_stages, activation, latent_size):
+def make_decoder(base_depth, num_stages, activation, latent_size, range_compression):
     def decoder_fn(code, is_training):
         images = resnet_decoder(code, is_training=is_training, base_depth=base_depth, num_stages=num_stages,
                                 activation=activation, scope='decoder')
+        # Clipping values to prevent explosion during training
+        if range_compression > 0:
+            if is_training:
+                images = tf.clip_by_value(images, -1., 1.)
+            images = tf.sinh(images / range_compression) * range_compression
         return images
     return decoder_fn
 
-def make_encoder(base_depth, num_stages, activation, latent_size):
+def make_encoder(base_depth, num_stages, activation, latent_size, range_compression):
     def encoder_fn(images, is_training):
+        # Apply range compression
+        if range_compression > 0:
+            images = tf.asinh(images / range_compression)*range_compression
+
         code = resnet_encoder(images, is_training=is_training, base_depth=base_depth, num_stages=num_stages,
                             activation=activation, latent_size=latent_size, scope='encoder')
         return code
@@ -69,27 +80,16 @@ def make_encoder(base_depth, num_stages, activation, latent_size):
 def make_loglikelihood_fn(type):
     if type == 'Fourier':
         def loglikelihood_fn(xin, yin, features):
-            size = xin.get_shape().as_list()[1]
-            # Apply PSF to output of network
-            x = tf.spectral.irfft2d(tf.spectral.rfft2d(xin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.))
-            y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)) # * features['psf']
+            x = tf.spectral.rfft2d(xin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)
+            y = tf.spectral.rfft2d(yin[...,0])  * features['psf'] / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)
 
             pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
             return -pz
     elif type == 'Pixel':
         def loglikelihood_fn(xin, yin, features):
             y = tf.spectral.irfft2d(tf.spectral.rfft2d(yin[...,0]) * features['psf'])
-
-            # Regularisation loss
-            lreg = tf.reduce_sum(yin[:,:,0]**2, axis=[-1, -2])
-
-            pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - y)**2, axis=[-1, -2])
-            return -pz - 0.001*lreg
-    elif type == 'SimplePixel':
-        def loglikelihood_fn(xin, yin, features):
-            #xin = tf.math.asinh(xin/(0.006*10))*(0.006*10)
-            pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - yin[:,:,:,0])**2, axis=[-1, -2])
-            return -pz*1000
+            pz = tf.reduce_sum(tf.abs(xin[:,:,:,0] - y)**2, axis=[-1, -2]) / features['nstd']**2
+            return -pz
     else:
         raise NotImplemented()
 
