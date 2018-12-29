@@ -25,7 +25,7 @@ def resnet_decoder(code,
         current_depth = base_depth * 2**num_stages
         net = tf.layers.conv2d_transpose(net, current_depth, kernel_size=4, strides=2, use_bias=False,
                                          activation=None, padding='VALID', name='deconv1')
-        net = activation(tf.layers.batch_normalization(net, training=is_training, name='bn1'))
+        net = activation(tf.layers.batch_normalization(net, training=is_training, name='batch_normalization_1'))
 
         # Now looping over stages
         for i in range(1, num_stages+1):
@@ -35,10 +35,10 @@ def resnet_decoder(code,
 
         net = tf.layers.conv2d_transpose(net, base_depth, kernel_size=4, strides=2, activation=None,
                                          use_bias=False, padding='SAME', name='deconv2')
-        net = activation(tf.layers.batch_normalization(net, training=is_training, name='bn2'))
+        net = activation(tf.layers.batch_normalization(net, training=is_training, name='batch_normalization_2'))
         net = tf.layers.conv2d_transpose(net, base_depth, kernel_size=4, strides=2, use_bias=False,
                                          activation=None, padding='SAME', name='deconv3')
-        net = activation(tf.layers.batch_normalization(net, training=is_training, name='bn3'))
+        net = activation(tf.layers.batch_normalization(net, training=is_training, name='batch_normalization_3'))
         output = tf.layers.conv2d_transpose(net, output_channels, kernel_size=4, strides=2,
                                          activation=None, padding='SAME', name='deconv4')
         return output
@@ -55,7 +55,7 @@ def resnet_encoder(inputs,
     with tf.variable_scope(scope, [inputs], reuse=reuse) as sc:
 
         net = tf.layers.conv2d(inputs, base_depth, kernel_size=4, activation=None, strides=2, use_bias=False, name='conv1')
-        net = activation(tf.layers.batch_normalization(net, training=is_training, name='bn1'))
+        net = activation(tf.layers.batch_normalization(net, training=is_training, name='batch_normalization_1'))
         net = tf.layers.conv2d(net, base_depth, kernel_size=4, activation=activation, strides=2, name='conv2')
 
         for i in range(1, num_stages+1):
@@ -65,7 +65,7 @@ def resnet_encoder(inputs,
             net = wide_resnet(net, current_depth, resample='down', scope='resnet%d_b'%i, is_training=is_training)
 
         net = tf.layers.conv2d(net, latent_size, kernel_size=3, strides=2, activation=None, use_bias=False)
-        net = activation(tf.layers.batch_normalization(net, training=is_training, name='bn2'))
+        net = activation(tf.layers.batch_normalization(net, training=is_training, name='batch_normalization_2'))
 
         # Reshaping into a 1D code
         net = tf.layers.flatten(net)
