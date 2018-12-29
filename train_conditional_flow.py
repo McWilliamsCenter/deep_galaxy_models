@@ -15,19 +15,19 @@ flags.DEFINE_string("vae_modules", default=None,
                      help="Path to encoder and decoder modules.")
 
 # Model parameters
-flags.DEFINE_integer("maf_layers", default=3,
+flags.DEFINE_integer("maf_layers", default=4,
                      help="Number of MAF layers")
 
 flags.DEFINE_integer("maf_size", default=512,
                      help="Number of hidden neurons per MAF layers.")
 
-flags.DEFINE_integer("latent_size", default=128,
+flags.DEFINE_integer("latent_size", default=64,
                      help="Number of dimensions in the latent code (z).")
 
 flags.DEFINE_string("activation", default="leaky_relu",
                      help="Activation function for all hidden layers.")
 
-flags.DEFINE_bool("shift_only", default="False",
+flags.DEFINE_bool("shift_only", default="True",
                      help="Whether to build a shift only MAF.")
 
 # Training parameters
