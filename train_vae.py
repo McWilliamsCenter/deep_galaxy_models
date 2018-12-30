@@ -35,7 +35,10 @@ flags.DEFINE_integer("batch_size", default=128,
 flags.DEFINE_float("learning_rate", default=0.0001,
                      help="Initial learning rate.")
 
-flags.DEFINE_float("gradient_clipping", default=1.,
+flags.DEFINE_float("adam_epsilon", default=0.0001,
+                     help="Epsilon fuzz factor in ADAM optimizer.")
+
+flags.DEFINE_float("gradient_clipping", default=10.,
                      help="Gradient norm clipping")
 
 flags.DEFINE_float("kl_weight", default=0.001,
@@ -59,12 +62,6 @@ def make_decoder(base_depth, num_stages, activation, latent_size, range_compress
     def decoder_fn(code, is_training):
         images = resnet_decoder(code, is_training=is_training, base_depth=base_depth, num_stages=num_stages,
                                 activation=activation, scope='decoder')
-        # images = tf.nn.leaky_relu(images, alpha=0.01)
-        # Clipping values to prevent explosion during training
-        # if range_compression > 0:
-        #     if is_training:
-        #         images = tf.clip_by_value(images, -1., 1.)
-        #     images = tf.sinh(images / range_compression) * range_compression
         return images
     return decoder_fn
 
