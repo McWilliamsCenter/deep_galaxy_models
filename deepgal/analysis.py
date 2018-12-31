@@ -2,7 +2,7 @@
 # images
 import galsim
 import numpy as np
-from galsim.generative_model import GenerativeGalaxyModel
+from galsim.tensorflow.generative_model import GenerativeGalaxyModel
 from astropy.table import Table, vstack
 from multiprocessing import Pool
 from functools import partial
@@ -10,6 +10,7 @@ from functools import partial
 def draw_galaxies(data_dir='/usr/local/share/galsim/COSMOS_25.2_training_sample',
                   generative_model='https://raw.githubusercontent.com/EiffL/GalSim-Hub/master/modules/generator.tar.gz',
                   batch_size=1024,
+                  n_batches=None,
                   pool_size=12):
     """
     This function will draw in postage stamps a sample of galaxies using both
@@ -26,8 +27,11 @@ def draw_galaxies(data_dir='/usr/local/share/galsim/COSMOS_25.2_training_sample'
     table_sims = None
     table_cosmos = None
 
+    if n_batches is None:
+        n_batches = len(cosmos_cat.orig_index )//batch_size
+
     # Process galaxies by batches
-    for i in range(len(cosmos_cat.orig_index )//batch_size):
+    for i in range(n_batches):
         inds = np.arange(i*batch_size,(i+1)*batch_size )
         print("Batch %d"%i)
         # Generate uncovolved light profiles
@@ -62,7 +66,9 @@ def draw_galaxies(data_dir='/usr/local/share/galsim/COSMOS_25.2_training_sample'
         table_sims = vstack(tmp_sims)
         table_cosmos = vstack(tmp_cosmos)
 
-    return table_sims, table_cosmos
+        table_param = Table(cosmos_cat.param_cat[cosmos_cat.orig_index[:len(table_sims)]])
+
+    return table_sims, table_cosmos, table_param
 
 def _draw_galaxies(inds, cosmos_cat=None, cosmos_index=None, sim_galaxies=None, cosmos_noise=None):
     """ Function to draw the galaxies into postage stamps
@@ -92,7 +98,7 @@ def _draw_galaxies(inds, cosmos_cat=None, cosmos_index=None, sim_galaxies=None, 
     return (k, im_sims, im_cosmos, moments_sims, moments_cosmos, flag)
 
 
-def _moments( images):
+def _moments(images):
     """
     Computes HSM moments for a set of galsim images
     """
