@@ -35,7 +35,7 @@ flags.DEFINE_integer("batch_size", default=128,
 flags.DEFINE_float("learning_rate", default=0.0001,
                      help="Initial learning rate.")
 
-flags.DEFINE_float("adam_epsilon", default=0.0001,
+flags.DEFINE_float("adam_epsilon", default=0.1,
                      help="Epsilon fuzz factor in ADAM optimizer.")
 
 flags.DEFINE_float("gradient_clipping", default=10.,
