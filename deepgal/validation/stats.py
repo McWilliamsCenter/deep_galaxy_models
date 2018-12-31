@@ -6,9 +6,10 @@ from rpy2.robjects import pandas2ri
 from astropy.table import Table
 import pandas as pd
 import galsim
+import os
+import numpy as np
 
-
-def moments(images):
+def moments(images, scale=0.03):
     """
     Computes HSM moments for a set of galsim images
     """
@@ -21,9 +22,12 @@ def moments(images):
     g2 = []
     flag = []
     amp = []
-
+    images = np.atleast_3d(images)
+    if images.shape[-1] == 1:
+        images = np.swapaxes(images, 0, 2)
     for i in range(len(images)):
-        shape = images[i].FindAdaptiveMom(guess_centroid=galsim.PositionD(32,32), strict=False)
+        image = galsim.Image(images[i], scale=scale)
+        shape = image.FindAdaptiveMom(guess_centroid=galsim.PositionD(32,32), strict=False)
         amp.append(shape.moments_amp)
         sigma.append(shape.moments_sigma)
         e.append(shape.observed_shape.e)
@@ -49,10 +53,10 @@ def moments(images):
 
 def morph_stats(images):
     """
-    Computes various morphology statistics provided by Peter
+    Computes various morphology statistics provided by Peter Freeman
     """
     # Initialize the R interface and extract R function
-    ro.r('source("morphological_indicators/interface.R", chdir=T)')
+    ro.r('source("%s/morphological_indicators/interface.R", chdir=T)'%os.path.dirname(__file__))
     compute_statistics_single = ro.r.compute_statistics_single
     pandas2ri.activate()
     numpy2ri.activate()
@@ -60,8 +64,12 @@ def morph_stats(images):
     flag = []
     rows = []
 
+    images = np.atleast_3d(images)
+    if images.shape[-1] == 1:
+        images = np.swapaxes(images, 0, 2)
+
     for i in range(len(images)):
-        im = images[i].array
+        im = images[i]
         ret = compute_statistics_single(im)
         # Testing if successful
         if(ret[0][0]):
