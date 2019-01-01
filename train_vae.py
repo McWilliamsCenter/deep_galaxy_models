@@ -5,6 +5,7 @@ from absl import flags
 from deepgal.nets import resnet_decoder, resnet_encoder
 from deepgal.galsim import build_input_pipeline
 from deepgal.VAEEstimator import vae_model_fn
+from deepgal.flow import _clip_by_value_preserve_grad
 
 # Model parameters
 flags.DEFINE_integer("base_depth", default=128,
@@ -31,10 +32,13 @@ flags.DEFINE_float("range_compression", default=0.003*20,
 flags.DEFINE_integer("batch_size", default=128,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.0002,
+flags.DEFINE_float("learning_rate", default=0.0001,
                      help="Initial learning rate.")
 
-flags.DEFINE_float("gradient_clipping", default=1.,
+flags.DEFINE_float("adam_epsilon", default=0.1,
+                     help="Epsilon fuzz factor in ADAM optimizer.")
+
+flags.DEFINE_float("gradient_clipping", default=10.,
                      help="Gradient norm clipping")
 
 flags.DEFINE_float("kl_weight", default=0.001,
@@ -58,11 +62,6 @@ def make_decoder(base_depth, num_stages, activation, latent_size, range_compress
     def decoder_fn(code, is_training):
         images = resnet_decoder(code, is_training=is_training, base_depth=base_depth, num_stages=num_stages,
                                 activation=activation, scope='decoder')
-        # Clipping values to prevent explosion during training
-        if range_compression > 0:
-            if is_training:
-                images = tf.clip_by_value(images, -1., 1.)
-            images = tf.sinh(images / range_compression) * range_compression
         return images
     return decoder_fn
 
@@ -83,7 +82,9 @@ def make_loglikelihood_fn(type):
             x = tf.spectral.rfft2d(xin[...,0]) / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)
             y = tf.spectral.rfft2d(yin[...,0])  * features['psf'] / tf.complex(tf.sqrt(tf.exp(features['ps'])),0.)
 
-            pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2])
+            # Compute FFT normalization factor
+            size = xin.get_shape().as_list()[1]
+            pz = tf.reduce_sum(tf.abs(x - y)**2, axis=[-1, -2]) / size**2
             return -pz
     elif type == 'Pixel':
         def loglikelihood_fn(xin, yin, features):

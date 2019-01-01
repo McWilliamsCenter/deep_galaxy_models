@@ -34,10 +34,10 @@ flags.DEFINE_bool("shift_only", default="True",
 flags.DEFINE_integer("batch_size", default=256,
                      help="Batch size.")
 
-flags.DEFINE_float("learning_rate", default=0.001,
+flags.DEFINE_float("learning_rate", default=0.0002,
                      help="Initial learning rate.")
 
-flags.DEFINE_integer("max_steps", default=50001,
+flags.DEFINE_integer("max_steps", default=200001,
                      help="Number of training steps to run.")
 
 flags.DEFINE_string("model_dir", default=os.path.join(os.getenv("TEST_TMPDIR", "/tmp"), "flow/"),

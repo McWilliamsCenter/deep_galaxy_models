@@ -156,7 +156,7 @@ def vae_model_fn(features, labels, mode, params, config):
     learning_rate = tf.train.cosine_decay(params["learning_rate"], global_step,
                                           params["max_steps"])
     tf.summary.scalar("learning_rate", learning_rate)
-    optimizer = tf.train.AdamOptimizer(learning_rate)
+    optimizer = tf.train.AdamOptimizer(learning_rate, epsilon=params['adam_epsilon'])
     grads_and_vars = optimizer.compute_gradients(loss)
     clipped_grads_and_vars = [(tf.clip_by_norm(grad, params["gradient_clipping"]), var) for grad, var in grads_and_vars]
 
