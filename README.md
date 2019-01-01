@@ -51,6 +51,19 @@ $ tar -cz -f ../generative_model.tar.gz --owner=0 --group=0 .
 This will compress the module as a tar.gz archive, which can now be hosted online
 and directly ingested by GalSim.
 
+## Testing the generative model
+
+The code for making some comparison plots is provided in the `deepgal.validation`
+module. To automatically produce all the diagnostic plots run the following
+command:
+
+```sh
+$ python mk_plots --generative_model=modules/flow/generator
+```
+
+This will use the generator specified to draw some postage stamps and then compute
+some statistics on these before producing the plots.
+
 ## Old Demos
 These are old examples
 
