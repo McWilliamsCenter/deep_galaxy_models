@@ -52,6 +52,22 @@ def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
     """
     cat = galsim.COSMOSCatalog(dir=data_dir, file_name=filename)
 
+    # Extracts the parametric catalog
+    cat_param = cat.param_cat[cat.orig_index]
+    from numpy.lib.recfunctions import append_fields
+
+    # Adds a few extra fields
+    bparams = cat_param['bulgefit']
+    sparams = cat_param['sersicfit']
+    cat_param = append_fields(cat_param, 'bulge_q', bparams[:,11])
+    cat_param = append_fields(cat_param, 'bulge_beta', bparams[:,15])
+    cat_param = append_fields(cat_param, 'disk_q', bparams[:,3])
+    cat_param = append_fields(cat_param, 'disk_beta', bparams[:,7])
+    cat_param = append_fields(cat_param, 'bulge_hlr', cat_param['hlr'][:,1])
+    cat_param = append_fields(cat_param, 'bulge_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,1]), np.zeros(len(cat_param) )))
+    cat_param = append_fields(cat_param, 'disk_hlr', cat_param['hlr'][:,2])
+    cat_param = append_fields(cat_param, 'disk_flux_log10', np.where(cat_param['use_bulgefit'] ==1, np.log10(cat_param['flux'][:,2]), np.zeros(len(cat_param) )))
+
     if input_nprocs is not None:
         pool = Pool(input_nprocs)
     else:
@@ -69,7 +85,7 @@ def build_input_pipeline(data_dir, filename='real_galaxy_catalog_25.2.fits',
             dset = dset.cache(cache_dir)
         if len(conditions) > 0:
             # Extract from the catalog the desired quantities
-            dset_cond =tf.data.Dataset.zip(tuple([tf.data.Dataset.from_tensor_slices(cat.param_cat[k][cat.orig_index].astype('float32')) for k in conditions]))
+            dset_cond =tf.data.Dataset.zip(tuple([tf.data.Dataset.from_tensor_slices(cat_param[k].astype('float32')) for k in conditions]))
             dset_cond.repeat(nrepeat)
             dset = dset = tf.data.Dataset.zip((dset, dset_cond))
         dset = dset.repeat().shuffle(buffer_size=buffer_size).batch(batch_size).prefetch(16)
