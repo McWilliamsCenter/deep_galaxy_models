@@ -101,28 +101,29 @@ def make_input_fn(data_filename, stamp_size, batch_size, **kwargs):
             'image': tf.FixedLenFeature([], tf.string),
         }
         im = tf.parse_single_example(tfrecord, features)['image']
-        return tf.image.decode_image(im)
-
-    def decoding_function(im):
-        im = tf.to_float(im)
-        im.set_shape([None, None, None, 3])
+        im = tf.image.decode_image(im)
+        im.set_shape([None, None, 3])
         im = tf.image.central_crop(im, 0.5)
         im = tf.image.resize_images(im,
                                     size=[stamp_size, stamp_size],
                                     method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
         return im
 
+    def augment(images):
+        images = tf.image.random_flip_left_right(images)
+        images = tf.image.random_flip_up_down(images)
+        return images
+
     def input_fn():
         data = tf.data.TFRecordDataset([data_filename])
-        data = data.cache().repeat()
         data = data.map(parsing_function)
+        data = data.cache().repeat()
         data = data.shuffle(10000)
-        data = data.batch(batch_size)
-        data = data.map(decoding_function)
-        data = data.map(tf.image.random_flip_left_right)
-        data = data.map(tf.image.random_flip_up_down)
+        data = data.apply(tf.contrib.data.map_and_batch(
+                map_func=augment, batch_size=batch_size, num_parallel_calls=6))
+        data = data.prefetch(16)
         iterator = data.make_one_shot_iterator()
-        batch_im = iterator.get_next()
+        batch_im = tf.to_float(iterator.get_next())
         return {'x': batch_im}, batch_im
 
     return input_fn
