@@ -16,10 +16,11 @@ def convert_image(image_path):
     """
     Converts a png to a tensorflow example
     """
-    image = mpimg.imread(image_path)
+    # Read image data in terms of bytes
+    with tf.gfile.GFile(image_path, 'rb') as fid:
+        image_data = fid.read()
     example = tf.train.Example(features = tf.train.Features(feature = {
-        'shape': tf.train.Feature(int64_list = tf.train.Int64List(value = image.shape)),
-        'image': tf.train.Feature(bytes_list = tf.train.BytesList(value = [image.tostring()]))
+        'image': tf.train.Feature(bytes_list = tf.train.BytesList(value = [image_data]))
     }))
     return example
 

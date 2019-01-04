@@ -109,8 +109,10 @@ def vae_model_fn(features, labels, mode, params, config):
 
         def make_decoder_spec():
             code = tf.placeholder(tf.float32, shape=[None, latent_size])
-            net = decoder_model(code)
-            hub.add_signature(inputs=code, outputs=net)
+            output = decoder_model(code)
+            if not tf.contrib.framework.is_tensor(output):
+                output = output.sample()
+            hub.add_signature(inputs=code, outputs=output)
 
         decoder_spec = hub.create_module_spec(make_decoder_spec)
         decoder = hub.Module(decoder_spec, name="decoder_module")
@@ -132,15 +134,25 @@ def vae_model_fn(features, labels, mode, params, config):
         log_prob = encoding.log_prob(code)
 
     with tf.variable_scope("decoder_module") as sc:
-        recon = decoder_model(code)
+        decoder_output = decoder_model(code)
+
+    if tf.contrib.framework.is_tensor(decoder_output):
+        recon = decoder_output
+        loglikelihood = params['loglikelihood_fn'](x, recon, features)
+    else:
+        # In this case, the decoder is actually returning a distribution
+        # which we can use to sample from and estimate the lihelihood function
+        recon = decoder_output.sample()
+        loglikelihood = decoder_output.log_prob(x)
 
     image_tile_summary("image", tf.to_float(x[:16]), rows=4, cols=4)
-    r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
+    if 'psf' in features.keys():
+        r = tf.expand_dims(tf.spectral.irfft2d(tf.spectral.rfft2d(recon[:,:,:,0])*features['psf']),axis=-1)
+    else:
+        r = recon
     image_tile_summary("recon", tf.to_float(r[:16]), rows=4, cols=4)
     image_tile_summary("diff", tf.to_float(x[:16] - r[:16]), rows=4, cols=4)
 
-    # This is the loglikelihood of a batch of images
-    loglikelihood = params['loglikelihood_fn'](x, recon, features)
     tf.summary.scalar('loglikelihood', tf.reduce_mean(loglikelihood))
 
     kl = log_prob - prior.log_prob(code)
