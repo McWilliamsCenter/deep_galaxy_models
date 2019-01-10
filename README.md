@@ -6,6 +6,7 @@ the GalSim software.
 ## Prerequisite
 
   - GalSim: See here to install it: https://github.com/GalSim-developers/GalSim
+  - GalSim-Hub: `pip install --user galsim-hub`
   - Tensorflow
   - Tensorflow Probability `pip install --user tensorflow-probability`
   - Tensorflow Hub `pip install --user tensorflow-hub`

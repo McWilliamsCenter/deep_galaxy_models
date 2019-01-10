@@ -1,6 +1,6 @@
 import galsim
 import numpy as np
-from galsim.tensorflow.generative_model import GenerativeGalaxyModel
+from galsim_hub import GenerativeGalaxyModel
 from multiprocessing import Pool
 from functools import partial
 from astropy.table import Table, vstack, join
