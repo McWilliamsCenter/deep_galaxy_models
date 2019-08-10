@@ -3,6 +3,7 @@
 import rpy2.robjects as ro
 from rpy2.robjects import numpy2ri
 from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
 from astropy.table import Table
 import pandas as pd
 import galsim
@@ -76,7 +77,8 @@ def morph_stats(images):
             flag.append(True)
         else:
             flag.append(False)
-        rows.append(pandas2ri.ri2py(ret[1]))
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            rows.append(ro.conversion.rpy2py(ret[1]))
 
     # Convert pandas dataframe to astropy table
     tab = Table.from_pandas(pd.concat(rows))
