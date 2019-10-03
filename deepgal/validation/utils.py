@@ -6,7 +6,7 @@ from functools import partial
 from astropy.table import Table, vstack, join
 from .stats import moments, morph_stats
 
-STAMP_SIZE=64
+STAMP_SIZE=128
 PIXEL_SCALE=0.03
 
 def draw_galaxies(data_dir='/usr/local/share/galsim/COSMOS_25.2_training_sample',
