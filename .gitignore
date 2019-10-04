@@ -117,7 +117,7 @@ dmypy.json
 notebooks/models
 notebooks/tests
 deepgal/old
-modules
+modules/backup
 results*
 myflow/
 
