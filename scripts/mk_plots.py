@@ -6,7 +6,7 @@ from deepgal.validation.plotting import moments_plots
 from absl import flags, app
 import pathlib
 
-flags.DEFINE_integer("n_batches", default=1,
+flags.DEFINE_integer("n_batches", default=20,
                   help="Number of batches of galaxies to sample")
 
 flags.DEFINE_integer("batch_size", default=1024,
@@ -21,7 +21,7 @@ flags.DEFINE_string("data_dir", default='/usr/local/share/galsim/COSMOS_25.2_tra
 flags.DEFINE_string("out_dir", default="./results",
                     help="Path to directory where to save the plots and results")
 
-flags.DEFINE_string("generative_model", default='https://raw.githubusercontent.com/EiffL/GalSim-Hub/master/modules/generative_model.tar.gz',
+flags.DEFINE_string("generative_model", default='modules/flow_vae_cosmos_128',
                     help="Generative model to use when sampling galaxies with GalSim")
 
 FLAGS = flags.FLAGS
@@ -32,7 +32,7 @@ def main(argv):
 
     pathlib.Path(FLAGS.out_dir).mkdir(parents=True, exist_ok=True)
     pathlib.Path(FLAGS.out_dir+"/plots/").mkdir(parents=True, exist_ok=True)
-    
+
     stamps_path = os.path.join(FLAGS.out_dir, 'postage_stamps.fits')
     cat_real_path = os.path.join(FLAGS.out_dir, 'catalog_real.fits')
     cat_mock_path = os.path.join(FLAGS.out_dir, 'catalog_mock.fits')
