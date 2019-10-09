@@ -111,7 +111,8 @@ def compute_statistics(postage_stamps, pool_size=12):
         for t in ['real', 'mock', 'param']:
             hsm_table = vstack(p.map(moments, postage_stamps[t]))
             hsm_table['IDENT'] = postage_stamps['IDENT']
-            stats_table = vstack(p.map(morph_stats, postage_stamps[t]))
+            #limiting the R code to images 64x64
+            stats_table = vstack(p.map(morph_stats, postage_stamps[t][32:-32,32:-32]))
             stats_table['IDENT'] = postage_stamps['IDENT']
             table = join(hsm_table, stats_table, keys=['IDENT'], table_names=['moments', 'morph'])
             table['flag'] = table['flag_moments'] & table['flag_morph']
