@@ -68,7 +68,7 @@ def morph_stats(images):
     images = np.atleast_3d(images)
     if images.shape[-1] == 1:
         images = np.swapaxes(images, 0, 2)
-
+        
     for i in range(len(images)):
         im = images[i]
         ret = compute_statistics_single(im)
