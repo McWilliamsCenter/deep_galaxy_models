@@ -21,7 +21,7 @@ flags.DEFINE_string("data_dir", default='/usr/local/share/galsim/COSMOS_25.2_tra
 flags.DEFINE_string("out_dir", default="./results",
                     help="Path to directory where to save the plots and results")
 
-flags.DEFINE_string("generative_model", default='modules/flow_vae_cosmos_128/generator',
+flags.DEFINE_string("generative_model", default='modules/flow_vae_cosmos_128_realnvp/generator',
                     help="Generative model to use when sampling galaxies with GalSim")
 
 FLAGS = flags.FLAGS
