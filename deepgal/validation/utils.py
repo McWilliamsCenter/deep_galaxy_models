@@ -9,7 +9,7 @@ from .stats import moments, morph_stats
 STAMP_SIZE=128
 PIXEL_SCALE=0.03
 
-def draw_galaxies(data_dir='/usr/local/share/galsim/COSMOS_25.2_training_sample',
+def draw_galaxies(data_dir=None,
                   generative_model='https://raw.githubusercontent.com/EiffL/GalSim-Hub/master/modules/generative_model.tar.gz',
                   batch_size=1024,
                   n_batches=None,

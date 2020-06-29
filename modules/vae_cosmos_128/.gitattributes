@@ -1,2 +1,0 @@
-decoder.tar.gz filter=lfs diff=lfs merge=lfs -text
-encoder.tar.gz filter=lfs diff=lfs merge=lfs -text
