@@ -6,10 +6,10 @@ from functools import partial
 from astropy.table import Table, vstack, join
 from .stats import moments, morph_stats
 
-STAMP_SIZE=64
+STAMP_SIZE=128
 PIXEL_SCALE=0.03
 
-def draw_galaxies(data_dir='/usr/local/share/galsim/COSMOS_25.2_training_sample',
+def draw_galaxies(data_dir=None,
                   generative_model='https://raw.githubusercontent.com/EiffL/GalSim-Hub/master/modules/generative_model.tar.gz',
                   batch_size=1024,
                   n_batches=None,
@@ -111,7 +111,8 @@ def compute_statistics(postage_stamps, pool_size=12):
         for t in ['real', 'mock', 'param']:
             hsm_table = vstack(p.map(moments, postage_stamps[t]))
             hsm_table['IDENT'] = postage_stamps['IDENT']
-            stats_table = vstack(p.map(morph_stats, postage_stamps[t]))
+            #limiting the R code to images 64x64
+            stats_table = vstack(p.map(morph_stats, postage_stamps[t][:,32:-32,32:-32]))
             stats_table['IDENT'] = postage_stamps['IDENT']
             table = join(hsm_table, stats_table, keys=['IDENT'], table_names=['moments', 'morph'])
             table['flag'] = table['flag_moments'] & table['flag_morph']

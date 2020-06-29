@@ -10,7 +10,7 @@ import galsim
 import os
 import numpy as np
 
-def moments(images, scale=0.03):
+def moments(images, scale=0.03, stamp_size=128):
     """
     Computes HSM moments for a set of galsim images
     """
@@ -23,14 +23,16 @@ def moments(images, scale=0.03):
     g2 = []
     flag = []
     amp = []
+    rho4 = []
     images = np.atleast_3d(images)
     if images.shape[-1] == 1:
         images = np.swapaxes(images, 0, 2)
     for i in range(len(images)):
         image = galsim.Image(images[i], scale=scale)
-        shape = image.FindAdaptiveMom(guess_centroid=galsim.PositionD(32,32), strict=False)
+        shape = image.FindAdaptiveMom(guess_centroid=galsim.PositionD(stamp_size//2,stamp_size//2), strict=False)
         amp.append(shape.moments_amp)
         sigma.append(shape.moments_sigma)
+        rho4.append(shape.moments_rho4)
         e.append(shape.observed_shape.e)
         e1.append(shape.observed_shape.e1)
         e2.append(shape.observed_shape.e2)
@@ -50,6 +52,7 @@ def moments(images, scale=0.03):
                   'g': g,
                   'g1': g1,
                   'g2': g2,
+                  'rho4': rho4,
                   'flag': flag})
 
 def morph_stats(images):
