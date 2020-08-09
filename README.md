@@ -1,72 +1,39 @@
-# Deep Galaxy Models for GalSim
+# Deep Generative Models for Galaxy Image Simulations
 
-This repository hosts some code used to train deep generative models for use with
-the GalSim software.
+This repository hosts the analysis code for the `Deep Generative Models for Galaxy Image Simulations`
+paper.
 
-## Prerequisite
+Content:
+  - Notebooks for reproducing each figures
+  - Scripts used to train the generative model and run the evaluation in `scripts`
+  - All components of the generative model (AutoEncoder, Latent Flow,  VAE-Flow)
+  as TF-Hub modules in `modules`.
 
+The data used to make the plots of the paper is available here: https://zenodo.org/record/3975700
+
+## How to use this repository
+
+The first step in order to execute the notebooks is to download the data resulting
+from the main analysis script (see below for more details). You can do so using the
+following command:
+
+```bash
+$ wget -O results.tgz https://zenodo.org/record/3975700/files/results_lanusse2020.tar.gz?download=1
+$ tar -xvzf results.tgz
+```
+
+This will download and extract the postage stamps of COSMOS images and of mock
+galaxy images used in the paper. The archive also contains catalogs of morphological
+statistics computed on each stamps.
+
+With the data downloaded, the dependencies needed to run the notebooks are:
+  - matplotlib
+  - seaborn
+  - astropy
   - GalSim: See here to install it: https://github.com/GalSim-developers/GalSim
-  - GalSim-Hub: `pip install --user galsim-hub`
-  - Tensorflow
-  - Tensorflow Probability `pip install --user tensorflow-probability`
-  - Tensorflow Hub `pip install --user tensorflow-hub`
+  - TensorFlow version 1.15 (not compatible with TF 2.x)
+  - TensorFlow-Hub : `pip install --user tensorflow-hub`
+  - GalSim-Hub : `pip install --user galsim-hub`
+  - daft: `pip install --user daft`
 
-The training data based on the COSMOS catalog is also required, see how to
-download it here:
-
-
-## To train a model
-
-### VAE with conditional flow sampling
-
-Training this model is a 2 step process, first train a normal variational
-autoencoder, then train a conditional flow model to sample in the latent space.
-
-```sh
-$ python train_vae.py --model_dir=models/vae --export_dir=modules/vae
-```
-Then use the exported encoder and decoder modules to train a conditional sampling
-model using the desired properties, for instance magnitude, size and redshift
-```sh
-$ python train_conditional_flow.py --conditions=mag_auto,flux_radius,zphot \
-                                   --vae_modules=modules/vae \
-                                   --model_dir=/data2/deepgal/FourierBasedFlow
-```
-
-
-use the `--help` option to see different training options
-
-## Exporting a module for GalSim
-
-GalSim will expect a module with a number of input quantities
-such as `mag_auto` or `flux_radius`, and outputting an *unconvolved* light
-profile on a postage stamp. In addition, the module should store as attached
-messages the size of the postage stamp, and the pixel scale. All of this is
-done by `train_conditional_flow.py` which saves a module named `generator` in
-the requested `export_dir`.
-
-To archive the module before making available online, do the following from inside the `generator` folder:
-```sh
-$ tar -cz -f ../generative_model.tar.gz --owner=0 --group=0 .
-```
-This will compress the module as a tar.gz archive, which can now be hosted online
-and directly ingested by GalSim.
-
-## Testing the generative model
-
-The code for making some comparison plots is provided in the `deepgal.validation`
-module. To automatically produce all the diagnostic plots run the following
-command:
-
-```sh
-$ python mk_plots --generative_model=modules/flow/generator
-```
-
-This will use the generator specified to draw some postage stamps and then compute
-some statistics on these before producing the plots.
-
-## Old Demos
-These are old examples
-
-  - [TestVAE.ipynb](notebooks/TestVAE.ipynb): Simple example of how to use the provided code to make a tf.Dataset from a GalSim galaxy catalog, and use it to train a simple VAE
-  - [TestGAN.ipynb](notebooks/TestGAN.ipynb): Simple example of how to use tfgan to build a generative model.
+Then you should be able to run all the notebooks.
