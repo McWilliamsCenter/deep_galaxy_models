@@ -2,7 +2,7 @@
 
 [![arXiv:2008.03833](https://img.shields.io/badge/astro--ph.IM-arXiv%3A2008.03833-B31B1B.svg)](https://arxiv.org/abs/2008.03833)
 
-This repository hosts the analysis code for [Deep Generative Models for Galaxy Image Simulations](https://arxiv.org/abs/2008.03833), Lanusse, Mandelbaum, Ravanbakhsh, Li, Freeman, and Poczos, 2020.
+This repository hosts the analysis code for [*Deep Generative Models for Galaxy Image Simulations*, Lanusse, Mandelbaum, Ravanbakhsh, Li, Freeman, and Poczos (2020)](https://arxiv.org/abs/2008.03833)
 
 
 You can try out the generative model proposed in the paper with this live notebook from the [GalSim-Hub repository](https://github.com/McWilliamsCenter/galsim_hub): [![colab link](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/McWilliamsCenter/galsim_hub/blob/master/notebooks/GalsimHubDemo.ipynb)
