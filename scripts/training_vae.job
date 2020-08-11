@@ -1,0 +1,32 @@
+#!/bin/bash
+#SBATCH --job-name=g2g              # nom du job
+#SBATCH --ntasks=1                  # nombre de tâche (un unique processus ici)
+#SBATCH --gres=gpu:1                # nombre de GPU à réserver (un unique GPU ici)
+#SBATCH --cpus-per-task=10          # nombre de coeurs à réserver (un quart du noeud)
+# /!\ Attention, la ligne suivante est trompeuse mais dans le vocabulaire
+# de Slurm "multithread" fait bien référence à l'hyperthreading.
+#SBATCH --hint=nomultithread        # on réserve des coeurs physiques et non logiques
+#SBATCH --time=24:00:00              # temps exécution maximum demande (HH:MM:SS)
+#SBATCH --output=g2g%j.out          # nom du fichier de sortie
+#SBATCH --error=g2g%j.out           # nom du fichier d'erreur (ici commun avec la sortie)
+#SBATCH --qos=qos_gpu-t4
+#SBATCH --partition=gpu_p2
+
+# nettoyage des modules charges en interactif et hérités par défaut
+module purge
+
+# chargement des modules
+module load anaconda-py3/2019.03 cuda/10.0 cudnn/7.6.5.32-cuda-10.1 fftw/3.3.8
+
+# echo des commandes lancées
+set -x
+
+# exécution du code
+cd $WORK/repo/galaxy2galaxy
+~/.local/bin/g2g-trainer --problem=img2img_cosmos128 \
+                         --data_dir=$WORK/g2g/datasets/img2img_cosmos128_nopadding \
+                         --output_dir=$WORK/g2g/training/vae_16 \
+                         --model=continuous_autoencoder_residual_vae \
+                         --hparams_set=continuous_autoencoder_residual_128 \
+                         --hparams=batch_size=64,bottleneck_bits=16,hidden_size=16,likelihood_type=Pixel,total_variation_loss=0.01,bottleneck_warmup_steps=1000 \
+			 --train_steps=125000
