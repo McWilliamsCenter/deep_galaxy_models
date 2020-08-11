@@ -2,14 +2,15 @@
 
 [![arXiv:2008.03833](https://img.shields.io/badge/astro--ph.IM-arXiv%3A2008.03833-B31B1B.svg)](https://arxiv.org/abs/2008.03833)
 
-This repository hosts the analysis code for the `Deep Generative Models for Galaxy Image Simulations`
-paper.
+This repository hosts the analysis code for the [Deep Generative Models for Galaxy Image Simulations (Lanusse et al. 2020)](https://arxiv.org/abs/2008.03833)
+paper.  
+You can try out the generative model proposed in the paper with this live notebook from the [GalSim-Hub repository](https://github.com/McWilliamsCenter/galsim_hub): [![colab link](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/McWilliamsCenter/galsim_hub/blob/master/notebooks/GalsimHubDemo.ipynb)
 
-Content:
-  - Notebooks for reproducing each figures
-  - Scripts used to train the generative model and run the evaluation in `scripts`
+Content of this repository:
+  - Notebooks for reproducing each figures of the paper
+  - Scripts used to train the generative model and run the evaluation in [scripts](scripts)
   - All components of the generative model (AutoEncoder, Latent Flow,  VAE-Flow)
-  as TF-Hub modules in `modules`.
+  as TF-Hub modules in [modules](modules).
 
 The data used to make the plots of the paper is available here: https://zenodo.org/record/3975700
 
