@@ -1,5 +1,7 @@
 # Deep Generative Models for Galaxy Image Simulations
 
+[![arXiv:2008.03833](https://img.shields.io/badge/astro--ph.IM-arXiv%3A2008.03833-B31B1B.svg)](https://arxiv.org/abs/2008.03833)
+
 This repository hosts the analysis code for the `Deep Generative Models for Galaxy Image Simulations`
 paper.
 
